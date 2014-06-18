@@ -1,4 +1,12 @@
-from distutils.core import setup
+
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
+
+# import xvalidator
+# version = xvalidator.__version__
+
 
 setup(
     name='xvalidator',
@@ -24,5 +32,11 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ),
-    tests_require=['nose', 'six'],
+    include_package_data=True,
+    install_requires=[
+        'six>=1.7.2',
+        'nose>=1.3.3',
+    ],
+    zip_safe=False,
+    tests_require=['nose'],
 )

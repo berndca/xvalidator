@@ -48,7 +48,7 @@ def test_check_ids_add_id_pass():
     ks = constraints.ID()
     el = Element('test', path='/el42-0,', attributes=dict(id='ID42'))
     id_element = Element('id', path=el.path + '@id', value=el.attributes['id'])
-    ks.to_python(id_element.value, path=id_element.path, stores=stores)
+    ks.to_python(id_element, stores=stores)
     stores.idStore.add_id('key_value', '/ads/cgfh')
     expected = {'ID:/': {'key_value': '/ads/cgfh', 'ID42': '/el42-0,@id'}}
     nose.tools.eq_(stores.idStore.keys, expected)
@@ -59,7 +59,7 @@ def test_init_key_store_two_keys_pass():
     ks0 = constraints.InitKeyStore('TestKey')
     path = '/root-0,/test-0,'
     el = Element('test', path=path)
-    ks0.to_python(el.value, path=el.path, stores=stores)
+    ks0.to_python(el, path=el.path, stores=stores)
     ks1 = constraints.InitKeyStore('TestKey')
     path = '/root-0,/test-1,'
     ks1.to_python(None, path=path, stores=stores)
@@ -72,7 +72,7 @@ def test_setup_key_refs_store_pass():
     ks = constraints.SetupKeyRefsStore('TestKeyRef')
     path = '/root-0,/test'
     el = Element('test', value='refName', path=path)
-    ks.to_python(el.value, path=el.path, stores=stores)
+    ks.to_python(el, stores=stores)
     nose.tools.eq_(stores.refStore.refs, [constraints.KeyRef(key_name='TestKeyRef',
                                                       key_value='refName', ref_path='/root-0,/test')])
 
@@ -112,7 +112,7 @@ def test_check_uniques_empty_value_pass():
     ks = constraints.InitUniqueStore('FieldKey')
     path = "/register-0,reg6"
     el = Element('reg', path=path)
-    ks.to_python(el, path=path, stores=stores)
+    ks.to_python(el, stores=stores)
     ck = constraints.CheckUniques(key_names='FieldKey', level=1)
     field = Element('field', value=None, path=path + '/field-2,field22')
     nose.tools.eq_(ck.to_python(field.value, path=field.path, stores=stores), None)
@@ -138,8 +138,8 @@ def test_check_uniques_duplicate_value_fail():
     ck = constraints.CheckUniques(key_names='FieldKey', level=1)
     field0 = Element('field', value='field22', path=path + '/field-2,field22')
     field1 = Element('field', value='field22', path=path + '/field-12,field22')
-    ck.to_python(field0.value, path=field0.path, stores=stores)
-    ck.to_python(field1.value, path=field1.path, stores=stores)
+    ck.to_python(field0, stores=stores)
+    ck.to_python(field1, stores=stores)
 
 
 @raises(ValidationException)
@@ -151,8 +151,8 @@ def test_check_keys_duplicate_value_fail():
     ck = constraints.CheckKeys(key_names='FieldKey', level=1)
     field0 = Element('field', value='field22', path=path + '/field-2,field22')
     field1 = Element('field', value='field22', path=path + '/field-12,field22')
-    nose.tools.eq_(ck.to_python(field0.value, path=field0.path, stores=stores), 'field22')
-    ck.to_python(field1.value, path=field1.path, stores=stores)
+    nose.tools.eq_(ck.to_python(field0, stores=stores), 'field22')
+    ck.to_python(field1, stores=stores)
 
 
 @raises(ValidationException)
@@ -163,7 +163,7 @@ def test_check_keys_empty_value_fail():
     ks.to_python(None, path=path, stores=stores)
     ck = constraints.CheckKeys(key_names='FieldKey', level=1)
     field = Element('field', path=path + '/field-2,field22')
-    ck.to_python(field.value, path=field.path, stores=stores)
+    ck.to_python(field, stores=stores)
 
 
 def test_check_keys_three_keys_pass():
@@ -176,7 +176,7 @@ def test_check_keys_three_keys_pass():
     field = Element('field', value='field22', path=path + '/field-2,field22')
     expected = {'FieldKey:/register-0,reg6':
                     {'field22': '/register-0,reg6/field-2,field22'}}
-    ck.to_python(field.value, path=field.path, stores=stores)
+    ck.to_python(field, stores=stores)
     nose.tools.eq_(stores.keyStore.keys, expected)
 
 
@@ -205,7 +205,7 @@ def test_check_keys_path_mismatch_fail():
     ks.to_python(el, path=path, stores=stores)
     ck = constraints.CheckKeys(key_names='FieldKey', level=1)
     field = Element('field', value='field22', path='/field-2,field22')
-    ck.to_python(field.value, path=field.path, stores=stores)
+    ck.to_python(field, stores=stores)
 
 
 def test_check_ids_single_pass():
@@ -279,7 +279,7 @@ def test_match_id_pass():
     path = '/root-0,'
     ck = constraints.ID()
     field = Element('field', value='field22', path=path + '/field-2,field22')
-    ck.to_python(field.value, path=field.path, stores=stores)
+    ck.to_python(field, stores=stores)
     instance_path = stores.idStore.match_id('field22')
     nose.tools.eq_(instance_path, path + '/field-2,field22')
 
@@ -300,11 +300,11 @@ def test_match_refs_pass():
     ref_element = Element('memoryMapRef', value='myMemoryMap',
                           path='/component-0,test/busInterface-0,/memoryMapRef-0,@memoryMapRef')
     constraints.InitKeyStore('memoryMapKey').to_python(
-        root_element.value, path=root_element.path, stores=stores)
+        root_element, stores=stores)
     constraints.CheckKeys(key_names='memoryMapKey', level=2).to_python(
-        key_element.value, path=key_element.path, stores=stores)
+        key_element, stores=stores)
     kr = constraints.SetupKeyRefsStore('memoryMapKey')
-    kr.to_python(ref_element.value, path=ref_element.path, stores=stores)
+    kr.to_python(ref_element, stores=stores)
     constraints.match_refs(stores)
     targets = {'/component-0,test/busInterface-0,/memoryMapRef-0,@memoryMapRef':
                    '/component-0,test/memoryMap-0,myMemoryMap/name-0,'}
@@ -319,7 +319,7 @@ def test_match_refs_value_not_found_fail():
                           path='/component-0,test/busInterface-0,/memoryMapRef-0,@memoryMapRef')
     constraints.InitKeyStore('memoryMapKey').to_python(root_element, path=root_element.path, stores=stores)
     kr = constraints.SetupKeyRefsStore('memoryMapKey')
-    kr.to_python(ref_element, path=ref_element.path, stores=stores)
+    kr.to_python(ref_element, stores=stores)
     constraints.match_refs(stores)
 
 
