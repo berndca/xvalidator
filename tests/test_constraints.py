@@ -359,6 +359,7 @@ def test_key_name_two_keys_pass():
 def test_key_sub_class_name_two_keys_pass():
     class TestKeyName(constraints.KeyName):
         key_names = 'Key1 Key2'.split()
+        refer_key_name = 'referKey'
         level = 1
 
     ks = constraints.InitKeyStore('Key2')
@@ -368,4 +369,7 @@ def test_key_sub_class_name_two_keys_pass():
     u_name = TestKeyName()
     key_path = root_path + '/child-1,prefixed:name'
     actual = u_name.to_python('prefixed:name', path=key_path, stores=stores)
-    nose.tools.eq_(actual, 'prefixed:name')
+    nose.tools.eq_(stores.refStore.refs, [
+        constraints.KeyRef(key_name='referKey', key_value='prefixed:name', ref_path='/root-0,/child-1,prefixed:name')])
+
+

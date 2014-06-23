@@ -138,6 +138,7 @@ def get_value_path_stores(value, **kwargs):
     assert path, messages['path']
     return getattr(value, 'value', value), path, stores
 
+
 class InitStores(Validator):
     """
     Creates an empty dict under
@@ -193,10 +194,26 @@ class InitUniqueStore(InitKeyStore):
         self.unique_names = [key_name]
 
 
-class SetupKeyRefsStore(Validator):
+class AddKeyRef(Validator):
     """
     """
     string_validator = None
+    refer_key_name = None
+    messages = dict(
+        names='%(keyNames (type list of strings or string) is is required.',
+        emptyValue='Value may not be empty.',
+    )
+
+    def to_python(self, value, **kwargs):
+        key_value, path, stores = get_value_path_stores(value, **kwargs)
+        stores.refStore.add_key_ref(self.refer_key_name, key_value, path)
+
+
+class SetupKeyRefsStore(AddKeyRef):
+    """
+    """
+    string_validator = None
+    refer_key_name = None
     messages = dict(
         names='%(keyNames (type list of strings or string) is is required.',
         emptyValue='Value may not be empty.',
@@ -205,11 +222,6 @@ class SetupKeyRefsStore(Validator):
     def __init__(self, refer_key_name, **kwargs):
         super(SetupKeyRefsStore, self).__init__(**kwargs)
         self.refer_key_name = refer_key_name
-
-
-    def to_python(self, value, **kwargs):
-        key_value, path, stores = get_value_path_stores(value, **kwargs)
-        stores.refStore.add_key_ref(self.refer_key_name, key_value, path)
 
 
 class CheckKeys(Validator):
@@ -225,6 +237,7 @@ class CheckKeys(Validator):
     not_empty = True
     string_validator_instance = None
     key_names = None
+    refer_key_name = None
     level = None
     messages = dict(
         names='%(keyNames (type list of strings or string) is is required.',
@@ -261,6 +274,8 @@ class CheckKeys(Validator):
         else:
             string_value = key_value
         target_path = '/'.join(path.split('/')[:-self.level])
+        if self.refer_key_name:
+            stores.refStore.add_key_ref(self.refer_key_name, key_value, path)
         self.add_value(stores, target_path, string_value, path)
         return string_value
 
