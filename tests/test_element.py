@@ -178,6 +178,12 @@ def test_element_to_dict_attribute_no_value_pass():
     nose.tools.eq_(actual, OrderedDict([('@valid', 'false')]))
 
 
+def test_element_to_dict_attribute_value_empty_list_pass():
+    element = Element('test', value=[], attributes={'valid': False})
+    actual = element.to_dict
+    nose.tools.eq_(actual, OrderedDict([('@valid', 'false')]))
+
+
 def test_element_to_dict_id_attribute_pass():
     element = Element('test', value=True, attributes={'id': 'ID42'})
     actual = element.to_dict
@@ -207,11 +213,12 @@ def test_document_to_dict_two_levels_three_children_pass():
     child0 = Element('child', value='childName1', ns_prefix='xsi')
     child1 = Element('child', value='childName2', ns_prefix='xsi')
     child2 = Element('child', value='childName3', ns_prefix='xsi')
-    root = Element('parent', value=[child0, child1, child2])
+    root = Element('parent', value=[child0, child1, child2]
+                   , ns_prefix='test')
     doc = Document('test', [nameSpaces[0]], root)
     actual = doc.to_dict
     nose.tools.eq_(actual, OrderedDict([
-        ('parent', OrderedDict([
+        ('test:parent', OrderedDict([
             ('@xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance'),
             ('xsi:child', ['childName1', 'childName2', 'childName3'])
         ]))]))
@@ -219,11 +226,11 @@ def test_document_to_dict_two_levels_three_children_pass():
 
 def test_document_to_dict_two_levels_empty_ns_prefix_pass():
     child = Element('child', value='childName1')
-    root = Element('parent', value=[child])
+    root = Element('parent', value=[child], ns_prefix='prefix')
     doc = Document('test', [nameSpaces[2]], root)
     actual = doc.to_dict
     nose.tools.eq_(actual, OrderedDict([
-        ('parent', OrderedDict([
+        ('prefix:parent', OrderedDict([
             ('@xmlns', 'http://www.spiritconsortium.org/XMLSchema/SPIRIT/1685-2009'),
             ('child', 'childName1')
         ]))]))
@@ -232,28 +239,27 @@ def test_document_to_dict_two_levels_empty_ns_prefix_pass():
 def test_document_to_dict_two_levels_round_trip_pass():
     p = '/parent-0,/child-'
     child = Element('child', value='childName1', ns_prefix='xsi', path=p + '0,')
-    root = Element('parent', value=[child], path='/parent-0,')
+    root = Element('parent', value=[child], path='/parent-0,', ns_prefix='xsi')
     stats = defaultdict(int)
-    stats['parent'] = 1
+    stats['xsi:parent'] = 1
     stats['xsi:child'] = 1
     doc = Document('test', [nameSpaces[0]], root, stats=stats)
     xml_dict = doc.to_dict
     doc_new = create_document('test', xml_dict)
-    nose.tools.eq_(doc, doc_new)
+    nose.tools.eq_(doc.__dict__.items(), doc_new.__dict__.items())
 
 
 def test_document_to_dict_two_levels_top_attribute_round_trip_pass():
     p = '/parent-0,/child-'
     child = Element('child', value='childName1', ns_prefix='xsi', path=p + '0,')
-    root = Element('parent', value=[child], path='/parent-0,')
+    root = Element('parent', value=[child], ns_prefix='xsi', path='/parent-0,')
     stats = defaultdict(int)
-    stats['parent'] = 1
+    stats['xsi:parent'] = 1
     stats['xsi:child'] = 1
-    stats['parent.@id'] = 1
-    doc = Document('test', [nameSpaces[0]], root, stats=stats, attributes={
-        'id': 'ID42'
-    })
+    stats['xsi:parent.@id'] = 1
+    doc = Document('test', [nameSpaces[0]], root, stats=stats,
+                   attributes=OrderedDict([('id', 'ID42')])
+        )
     xml_dict = doc.to_dict
     doc_new = create_document('test', xml_dict)
-    nose.tools.eq_(doc.root_element, doc_new.root_element)
-    nose.tools.eq_(doc, doc_new)
+    nose.tools.eq_(doc.__dict__.items(), doc_new.__dict__.items())

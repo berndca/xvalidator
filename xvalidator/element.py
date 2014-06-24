@@ -75,7 +75,7 @@ class Element(utils.CommonEqualityMixin):
         else:
             value = _value_to_string(self.value)
         if result:
-            if value is None or value == '':
+            if value is None or value == '' or value == []:
                 return result
             result['#text'] = _value_to_string(value)
             return result
@@ -105,12 +105,11 @@ def get_result_tag(key):
 
 
 def create_element(tag, value_dict, name_spaces, path='', instance_index=0,
-                   stats=None, is_root=False):
+                   stats=None):
     """
     """
     ns_prefix = ''
-    if not is_root:
-        ns_prefix = check_name_space_prefix(tag, name_spaces)
+    ns_prefix = check_name_space_prefix(tag, name_spaces)
     parent_tag = get_result_tag(tag)
     value_dict_keys = {
         (key.split(':')[1] if ':' in key else key): key
@@ -181,7 +180,8 @@ class Document(utils.CommonEqualityMixin):
         if self.attributes:
             root_attr.extend([('@' + key, value)
                               for key, value in self.attributes.items()])
-        result[self.root_element.tag] = OrderedDict(root_attr + list(root.items()))
+        root_key = '%s:%s' % (self.root_element.ns_prefix, self.root_element.tag)
+        result[root_key] = OrderedDict(root_attr + list(root.items()))
         return result
 
 
@@ -202,8 +202,7 @@ def create_document(source, xml_dict):
                 stats['%s.%s' % (root_tag, key)] += 1
         else:
             xml_root[key] = value
-    root_element = create_element(root_tag, xml_root, name_spaces, stats=stats,
-                                  is_root=True)
+    root_element = create_element(root_tag, xml_root, name_spaces, stats=stats)
     attributes_arg = attributes if attributes else None
     return Document(source=source, name_spaces=name_spaces, attributes=attributes_arg,
                     root_element=root_element, stats=stats)

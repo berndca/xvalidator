@@ -73,16 +73,17 @@ class ElementSchema(Validator):
             return result
 
     def _validate_attributes(self, element, **kwargs):
-        validated_attributes = {}
+        validated_attributes = OrderedDict()
         attributes = element.attributes
         if attributes:
             expected_attributes = set([validator.tag
                                       for validator in self.attributes
                                       if validator.tag != '*'])
             extra_attribute_keys = set(attributes.keys()) - expected_attributes
-            validators = {validator.tag: validator
-                          for validator in self.attributes
-                          if validator.tag in attributes.keys()}
+            validators = OrderedDict()
+            for validator in self.attributes:
+                if validator.tag in attributes.keys():
+                    validators[validator.tag] = validator
             if extra_attribute_keys:
                 allow_extra_attributes = any(validator.tag == '*'
                                              for validator in self.attributes)
@@ -92,15 +93,16 @@ class ElementSchema(Validator):
                 else:
                     utils.error(logger, 'Found unexpected attributes: "%s" in "%s".' % (
                         ', '.join(extra_attribute_keys), element.path))
-            for tag in expected_attributes:
-                if validators[tag].validator is None:
-                    validated_attributes[tag] = attributes[tag]
-                else:
-                    kwargs.update(path=element.path + '@%s' % tag)
-                    validated_attributes[tag] = self._validate(
-                        validators[tag].validator,
-                        attributes[tag], '%s.@%s' % (element.tag, tag),
-                        **kwargs)
+            for tag in validators.keys():
+                if tag in expected_attributes:
+                    if validators[tag].validator is None:
+                        validated_attributes[tag] = attributes[tag]
+                    else:
+                        kwargs.update(path=element.path + '@%s' % tag)
+                        validated_attributes[tag] = self._validate(
+                            validators[tag].validator,
+                            attributes[tag], '%s.@%s' % (element.tag, tag),
+                            **kwargs)
             return validated_attributes
 
     @property
@@ -109,6 +111,7 @@ class ElementSchema(Validator):
 
     def to_python(self, element, **kwargs):
         assert isinstance(element, Element), 'Argument element should be of type Element, got %r' % element
+        kwargs.update(path=element.path)
         if isinstance(element.value, list):
             if element.value and isinstance(element.value[0], Element):
                 element.value = self.validator.to_python(element.value, **kwargs)
@@ -116,7 +119,6 @@ class ElementSchema(Validator):
                 element.value = [self.validator.to_python(item, **kwargs)
                                  for item in element.value]
         elif self.validator:
-            kwargs.update(path=element.path)
             element.value = self._validate(self.validator, element.value,
                                            'Element %s' % element.tag, **kwargs)
         element.attributes = self._validate_attributes(element, **kwargs)
@@ -252,38 +254,41 @@ class SequenceSchema(Validator):
         return result_sequence
 
     def to_python(self, elements_list, **kwargs):
-        if not isinstance(elements_list, list):
-            raise ValidationException('Expected child elements.', elements_list)
-        if self.initial:
-            self.initial.to_python(None, **kwargs)
-        for element in elements_list:
-            if not isinstance(element, Element):
-                raise ValidationException('All values must be of type Element.',
-                                          elements_list)
-        el_dict = OrderedDict()
-        for element in elements_list:
-            if element.tag in el_dict:
-                if isinstance(el_dict[element.tag], list):
-                    el_dict[element.tag].append(element)
+        if elements_list is None and not self.not_empty:
+            pass
+        else:
+            if not isinstance(elements_list, list):
+                raise ValidationException('Expected child elements.', elements_list)
+            if self.initial:
+                self.initial.to_python(None, **kwargs)
+            for element in elements_list:
+                if not isinstance(element, Element):
+                    raise ValidationException('All values must be of type Element.',
+                                              elements_list)
+            el_dict = OrderedDict()
+            for element in elements_list:
+                if element.tag in el_dict:
+                    if isinstance(el_dict[element.tag], list):
+                        el_dict[element.tag].append(element)
+                    else:
+                        el_dict[element.tag] = [el_dict[element.tag],
+                                                element]
                 else:
-                    el_dict[element.tag] = [el_dict[element.tag],
-                                            element]
-            else:
-                el_dict[element.tag] = element
-        tag = '(%s)' % el_dict['tag'].value if 'tag' in el_dict else ''
-        msg = 'Validating Schema: %s for element <%s%s> with keys: %s' % (
-            self.__class__.__name__, self.tag, tag, ', '.join(el_dict.keys()))
-        utils.debug(logger, msg)
-        sequence = self.match_sequence(el_dict.keys())
-        result = []
-        if sequence:
-            for element_schema in sequence:
-                field_element = el_dict[element_schema.tag]
-                if isinstance(field_element, list):
-                    validated_elements = [element_schema.to_python(item, **kwargs)
-                                          for item in field_element]
-                    result.extend(validated_elements)
-                else:
-                    validated_element = element_schema.to_python(field_element, **kwargs)
-                    result.append(validated_element)
-        return result
+                    el_dict[element.tag] = element
+            tag = '(%s)' % el_dict['tag'].value if 'tag' in el_dict else ''
+            msg = 'Validating Schema: %s for element <%s%s> with keys: %s' % (
+                self.__class__.__name__, self.tag, tag, ', '.join(el_dict.keys()))
+            utils.debug(logger, msg)
+            sequence = self.match_sequence(el_dict.keys())
+            result = []
+            if sequence:
+                for element_schema in sequence:
+                    field_element = el_dict[element_schema.tag]
+                    if isinstance(field_element, list):
+                        validated_elements = [element_schema.to_python(item, **kwargs)
+                                              for item in field_element]
+                        result.extend(validated_elements)
+                    else:
+                        validated_element = element_schema.to_python(field_element, **kwargs)
+                        result.append(validated_element)
+            return result

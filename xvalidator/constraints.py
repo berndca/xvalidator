@@ -197,7 +197,7 @@ class InitUniqueStore(InitKeyStore):
 class AddKeyRef(Validator):
     """
     """
-    string_validator = None
+    string_validator_instance = None
     refer_key_name = None
     messages = dict(
         names='%(keyNames (type list of strings or string) is is required.',
@@ -206,7 +206,12 @@ class AddKeyRef(Validator):
 
     def to_python(self, value, **kwargs):
         key_value, path, stores = get_value_path_stores(value, **kwargs)
-        stores.refStore.add_key_ref(self.refer_key_name, key_value, path)
+        if self.string_validator_instance:
+            string_value = self.string_validator_instance.to_python(key_value)
+        else:
+            string_value = key_value
+        stores.refStore.add_key_ref(self.refer_key_name, string_value, path)
+        return string_value
 
 
 class SetupKeyRefsStore(AddKeyRef):

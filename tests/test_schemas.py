@@ -335,7 +335,8 @@ def test_to_python_pass():
     ]
     for element in expected:
         element.isValidated = True
-    actual = Test().to_python(element_list)
+        test_instance = Test()
+    actual = test_instance.to_python(element_list)
     nose.tools.eq_(actual, expected)
 
 
