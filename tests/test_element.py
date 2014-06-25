@@ -5,8 +5,7 @@ import nose
 import nose.tools
 
 from xvalidator.element import Element, NameSpace, create_element, \
-    check_name_space_prefix, get_result_tag, Document, create_document
-from xvalidator.utils import reset_message_counters, errorCounter
+    get_result_tag, Document, create_document
 
 
 nameSpaces = [
@@ -23,9 +22,9 @@ def test_element_pass():
 
 def test_element_repr():
     actual = repr(Element('tagName', value=[1, 2, 3],
-                          attributes=dict(id='ID42'), path='/root-0,name', ns_prefix='xs'))
+                          attributes=dict(id='ID42'), path='/root-0,name'))
     expected = 'Element(tag=\'tagName\', attributes={\'id\': \'ID42\'}, ' \
-               'path="/root-0,name", ns_prefix=xs, value=[1, 2, 3])'
+               'path="/root-0,name", value=[1, 2, 3])'
     nose.tools.eq_(actual, expected)
 
 
@@ -35,22 +34,9 @@ def test_element_str():
     nose.tools.eq_(actual, '<tagName>')
 
 
-def test_check_name_space_prefix_pass():
-    key = 'spirit:name'
-    ix = check_name_space_prefix(key, nameSpaces)
-    nose.tools.eq_(ix, 'spirit')
-
-
-def test_check_name_space_prefix_invalid_prefix_fail():
-    reset_message_counters()
-    key = 'invalid:name'
-    check_name_space_prefix(key, nameSpaces)
-    nose.tools.eq_(errorCounter.value, 1)
-
-
 def test_get_result_key_pass():
     actual = get_result_tag('spirit:name')
-    nose.tools.eq_(actual, 'name')
+    nose.tools.eq_(actual, 'spirit:name')
 
 
 def test_create_element_root_only():
@@ -191,8 +177,8 @@ def test_element_to_dict_id_attribute_pass():
 
 
 def test_element_to_dict_three_levels_mix_ns_prefix_pass():
-    level2 = Element('level2', value='level2Name', ns_prefix='post')
-    level1 = Element('level1', value=[level2], ns_prefix='pre')
+    level2 = Element('post:level2', value='level2Name')
+    level1 = Element('pre:level1', value=[level2])
     root = Element('parent', value=[level1])
     actual = root.to_dict
     nose.tools.eq_(actual, OrderedDict([
@@ -200,21 +186,20 @@ def test_element_to_dict_three_levels_mix_ns_prefix_pass():
 
 
 def test_element_to_dict_two_levels_three_children_pass():
-    child0 = Element('child', value='childName1', ns_prefix='pre')
-    child1 = Element('child', value='childName2', ns_prefix='pre')
-    child2 = Element('child', value='childName3', ns_prefix='pre')
-    parent = Element('parent', value=[child0, child1, child2], ns_prefix='pre')
+    child0 = Element('pre:child', value='childName1')
+    child1 = Element('pre:child', value='childName2')
+    child2 = Element('pre:child', value='childName3')
+    parent = Element('pre:parent', value=[child0, child1, child2])
     actual = parent.to_dict
     nose.tools.eq_(actual, OrderedDict([
         ('pre:child', ['childName1', 'childName2', 'childName3'])]))
 
 
 def test_document_to_dict_two_levels_three_children_pass():
-    child0 = Element('child', value='childName1', ns_prefix='xsi')
-    child1 = Element('child', value='childName2', ns_prefix='xsi')
-    child2 = Element('child', value='childName3', ns_prefix='xsi')
-    root = Element('parent', value=[child0, child1, child2]
-                   , ns_prefix='test')
+    child0 = Element('xsi:child', value='childName1')
+    child1 = Element('xsi:child', value='childName2')
+    child2 = Element('xsi:child', value='childName3')
+    root = Element('test:parent', value=[child0, child1, child2])
     doc = Document('test', [nameSpaces[0]], root)
     actual = doc.to_dict
     nose.tools.eq_(actual, OrderedDict([
@@ -226,7 +211,7 @@ def test_document_to_dict_two_levels_three_children_pass():
 
 def test_document_to_dict_two_levels_empty_ns_prefix_pass():
     child = Element('child', value='childName1')
-    root = Element('parent', value=[child], ns_prefix='prefix')
+    root = Element('prefix:parent', value=[child])
     doc = Document('test', [nameSpaces[2]], root)
     actual = doc.to_dict
     nose.tools.eq_(actual, OrderedDict([
@@ -237,9 +222,9 @@ def test_document_to_dict_two_levels_empty_ns_prefix_pass():
 
 
 def test_document_to_dict_two_levels_round_trip_pass():
-    p = '/parent-0,/child-'
-    child = Element('child', value='childName1', ns_prefix='xsi', path=p + '0,')
-    root = Element('parent', value=[child], path='/parent-0,', ns_prefix='xsi')
+    p = '/xsi:parent-0,/xsi:child-'
+    child = Element('xsi:child', value='childName1', path=p + '0,')
+    root = Element('xsi:parent', value=[child], path='/xsi:parent-0,')
     stats = defaultdict(int)
     stats['xsi:parent'] = 1
     stats['xsi:child'] = 1
@@ -250,9 +235,9 @@ def test_document_to_dict_two_levels_round_trip_pass():
 
 
 def test_document_to_dict_two_levels_top_attribute_round_trip_pass():
-    p = '/parent-0,/child-'
-    child = Element('child', value='childName1', ns_prefix='xsi', path=p + '0,')
-    root = Element('parent', value=[child], ns_prefix='xsi', path='/parent-0,')
+    p = '/xsi:parent-0,/xsi:child-'
+    child = Element('xsi:child', value='childName1', path=p + '0,')
+    root = Element('xsi:parent', value=[child], path='/xsi:parent-0,')
     stats = defaultdict(int)
     stats['xsi:parent'] = 1
     stats['xsi:child'] = 1

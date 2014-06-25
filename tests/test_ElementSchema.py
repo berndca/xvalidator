@@ -1,7 +1,7 @@
 import nose
 from nose.tools import raises
 
-from xvalidator.constraints import InitKeyStore, Stores, ID
+from xvalidator.constraints import Stores, ID
 from xvalidator.element import Element
 from xvalidator.utils import errorCounter, reset_message_counters
 from xvalidator.schemas import ElementSchema, SequenceSchema

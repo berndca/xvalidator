@@ -2,6 +2,7 @@ from collections import namedtuple
 import logging
 
 import six
+from xvalidator import utils
 
 from xvalidator.validators import Validator, ValidationException, NCName, Name
 
@@ -351,11 +352,20 @@ class IDREF(NCName):
         stores.idrefStore.add_idref(string_value, path)
         return value
 
+
 def match_refs(stores):
     def match_store_refs(key_store, ref_store):
         for ref in ref_store.refs:
-            instance_path = key_store.match_ref(ref.key_name, ref.key_value)
-            ref_store.set_target(ref.ref_path, instance_path)
+            try:
+                instance_path = key_store.match_ref(ref.key_name, ref.key_value)
+                ref_store.set_target(ref.ref_path, instance_path)
+            except ValidationException as e:
+                msg = 'Error matching %s for "%s"' % (
+                    ref.key_name, ref.key_value)
+                utils.error(logger, msg)
+            else:
+                logger.debug('Successfully matched "%s/%s", got: %r'
+                             % (ref.key_name, ref.key_value, instance_path))
 
     match_store_refs(stores.keyStore, stores.refStore)
     match_store_refs(stores.idStore, stores.idrefStore)

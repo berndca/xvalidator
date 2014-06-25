@@ -77,15 +77,15 @@ class ElementSchema(Validator):
         attributes = element.attributes
         if attributes:
             expected_attributes = set([validator.tag
-                                      for validator in self.attributes
-                                      if validator.tag != '*'])
+                                       for validator in self.attributes
+                                       if validator.tag[-1] != '*'])
             extra_attribute_keys = set(attributes.keys()) - expected_attributes
             validators = OrderedDict()
             for validator in self.attributes:
                 if validator.tag in attributes.keys():
                     validators[validator.tag] = validator
             if extra_attribute_keys:
-                allow_extra_attributes = any(validator.tag == '*'
+                allow_extra_attributes = any(validator.tag[-1] == '*'
                                              for validator in self.attributes)
                 if allow_extra_attributes:
                     for extra_attribute_name in extra_attribute_keys:
@@ -114,9 +114,11 @@ class ElementSchema(Validator):
         kwargs.update(path=element.path)
         if isinstance(element.value, list):
             if element.value and isinstance(element.value[0], Element):
-                element.value = self.validator.to_python(element.value, **kwargs)
+                element.value = self._validate(self.validator, element.value,
+                                               'Element %s' % element.tag, **kwargs)
             else:
-                element.value = [self.validator.to_python(item, **kwargs)
+                element.value = [self._validate(self.validator, item,
+                                                'Element %s' % element.tag, **kwargs)
                                  for item in element.value]
         elif self.validator:
             element.value = self._validate(self.validator, element.value,
