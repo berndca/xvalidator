@@ -3,6 +3,10 @@ import logging
 
 from xvalidator import utils
 
+try:  # pragma no cover
+    _unicode = unicode
+except NameError:  # pragma no cover
+    _unicode = str
 
 __author__ = 'bernd'
 
@@ -11,13 +15,13 @@ logger = logging.getLogger(__name__)
 NameSpace = namedtuple('NameSpace', 'prefix uri')
 
 
-def _value_to_string(value):
+def _value_to_unicode(value):
     if not value is None:
         if isinstance(value, bool):
             if value:
                 return 'true'
             return 'false'
-        return str(value)
+        return _unicode(value)
 
 
 class Element(utils.CommonEqualityMixin):
@@ -45,7 +49,7 @@ class Element(utils.CommonEqualityMixin):
         result = OrderedDict()
         if self.attributes:
             for key, value in self.attributes.items():
-                result['@' + key] = _value_to_string(value)
+                result['@' + key] = _value_to_unicode(value)
         if isinstance(self.value, list):
             if self.value and isinstance(self.value[0], Element):
                 for child in self.value:
@@ -59,13 +63,13 @@ class Element(utils.CommonEqualityMixin):
                     else:
                         result[key] = child.to_dict
                 return result
-            value = [_value_to_string(item) for item in self.value]
+            value = [_value_to_unicode(item) for item in self.value]
         else:
-            value = _value_to_string(self.value)
+            value = _value_to_unicode(self.value)
         if result:
             if value is None or value == '' or value == []:
                 return result
-            result['#text'] = _value_to_string(value)
+            result['#text'] = _value_to_unicode(value)
             return result
         return value
 

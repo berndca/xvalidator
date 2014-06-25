@@ -121,8 +121,11 @@ class ElementSchema(Validator):
                                                 'Element %s' % element.tag, **kwargs)
                                  for item in element.value]
         elif self.validator:
-            element.value = self._validate(self.validator, element.value,
-                                           'Element %s' % element.tag, **kwargs)
+            if element.value is None and self.minOccurs == 0:
+                logger.debug('Ignoring empty element "%s".' % element.tag)
+            else:
+                element.value = self._validate(self.validator, element.value,
+                                               'Element %s' % element.tag, **kwargs)
         element.attributes = self._validate_attributes(element, **kwargs)
         element.isValidated = True
         return element
