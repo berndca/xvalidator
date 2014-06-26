@@ -2,7 +2,8 @@ from collections import namedtuple
 import logging
 
 import six
-from xvalidator import utils
+
+import utils
 
 from xvalidator.validators import Validator, ValidationException, NCName, Name
 
@@ -33,6 +34,9 @@ class KeyStore(object):
                 self._key_index[key_name].append(target_path)
             self._keys[key] = {}
 
+    def in_keys(self, key_name, target_path):
+        return '%s:%s' % (key_name, target_path) in self._keys
+
     def add_value(self, key_names, target_path, key_value, key_path):
         if isinstance(key_names, six.string_types):
             key_names_list = [key_names]
@@ -40,7 +44,7 @@ class KeyStore(object):
             key_names_list = key_names
         for key_name in key_names_list:
             key = '%s:%s' % (key_name, target_path)
-            if key in self._keys:
+            if self.in_keys(key_name, target_path):
                 if key_value in self._keys[key]:
                     msg = 'Duplicate key value %s for %s at %s' % (key_value,
                                                                    key_name,
@@ -64,6 +68,12 @@ class KeyStore(object):
         raise ValidationException('Could not match ref %s for %s' % (
             ref_key_value, key_name), ref_key_value)
 
+    def key_value_count(self, key_name, target_path):
+        key = '%s:%s' % (key_name, target_path)
+        if key in self._keys:
+            return len(self._keys[key])
+        return 0
+
     @property
     def keys(self):
         return {key: value for key, value in self._keys.items()}
@@ -83,6 +93,9 @@ class IDStore(KeyStore):
 
     def match_id(self, ref_key_value):
         return super(IDStore, self).match_ref(self.key_name, ref_key_value)
+
+    def id_count(self):
+        return super(IDStore, self).key_value_count(self.key_name, self.path)
 
 
 class RefStore(object):
@@ -152,18 +165,6 @@ class InitStores(Validator):
         store='Parameter store of type Stores expected.',
     )
 
-#    def __init__(self, **kwargs):
-#        super(InitStores, self).__init__(**kwargs)
-#        for key in kwargs.keys():
-#            assert key in {'key_names', 'unique_names'}, 'Unexpected kwarg %s' % key
-#            value = getattr(self, key)
-#            if isinstance(value, list):
-#                assert value and all([isinstance(item, six.string_types)
-#                                      for item in value]), self.messages['name']
-#            else:
-#                assert isinstance(value, six.string_types), self.messages['name']
-
-
     def to_python(self, value, **kwargs):
         v, path, stores = get_value_path_stores(value, **kwargs)
         if self.key_names:
@@ -171,6 +172,8 @@ class InitStores(Validator):
         if self.unique_names:
             stores.uniquesStore.add_key(self.unique_names, path)
 
+    def build(self, *args, **kwargs):
+        return super(InitStores, self).build(*args, **kwargs)
 
 
 class InitKeyStore(InitStores):
@@ -213,6 +216,9 @@ class AddKeyRef(Validator):
             string_value = key_value
         stores.refStore.add_key_ref(self.refer_key_name, string_value, path)
         return string_value
+
+    def build(self, *args, **kwargs):
+        return super(AddKeyRef, self).build(*args, **kwargs)
 
 
 class SetupKeyRefsStore(AddKeyRef):
@@ -289,6 +295,28 @@ class CheckKeys(Validator):
         if self.key_names:
             stores.keyStore.add_value(self.key_names, target_path, value, path)
 
+    def gen_key_value(self, store, path):
+        suffix = '0'
+        name = ''
+        target_path = '/'.join(path.split('/')[:-self.level])
+        for key_name in self.key_names:
+            if store.in_keys(key_name, target_path):
+                name = key_name
+                suffix = str(store.key_value_count(key_name, target_path))
+                break
+        if self.refer_key_name:
+            return self.refer_key_name + suffix
+        return name + suffix
+
+    def gen_default_build_value(self, stores, path):
+        return self.gen_key_value(stores.keyStore, path)
+
+    def build(self, *args, **kwargs):
+        key_value, path, stores = get_value_path_stores(None, **kwargs)
+        self.default_build_value = self.gen_default_build_value(stores, path)
+        return super(CheckKeys, self).build(*args, **kwargs)
+
+
 class CheckUniques(CheckKeys):
     not_empty = False
     key_names = None
@@ -296,6 +324,9 @@ class CheckUniques(CheckKeys):
     def add_value(self, stores, target_path, value, path):
         if self.key_names:
             stores.uniquesStore.add_value(self.key_names, target_path, value, path)
+
+    def gen_default_build_value(self, stores, path):
+        return super(CheckUniques, self).gen_key_value(stores.uniquesStore, path)
 
 
 class KeyName(CheckKeys):
@@ -334,6 +365,11 @@ class ID(NCName):
         stores.idStore.add_id(string_value, path)
         return value
 
+    def build(self, *args, **kwargs):
+        key_value, path, stores = get_value_path_stores(None, **kwargs)
+        self.default_build_value = 'testId' + str(stores.idStore.id_count())
+        return super(ID, self).build(*args, **kwargs)
+
 
 class IDREF(NCName):
     """
@@ -344,6 +380,7 @@ class IDREF(NCName):
     must be unique within an XML instance, regardless of the attribute's name
     or its element name.
     """
+    default_build_value = 'testId0'
     not_empty = True
 
     def to_python(self, value, **kwargs):

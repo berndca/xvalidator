@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from copy import copy
 import logging
+import random
 import re
 
 import six
@@ -28,6 +29,7 @@ class ValidationException(Exception):
 
 class Validator:
     __metaclass__ = ABCMeta
+    default_build_value = None
 
     # def __unicode__(self):
     # return self.__class__.__name__
@@ -43,17 +45,22 @@ class Validator:
     def to_python(self, value, **kwargs):
         return value
 
-    @staticmethod
-    def from_python(value):
-        return value
+    @abstractmethod
+    def build(self, *args, **kwargs):
+        if args:
+            value = args[0]
+        else:
+            if not self.default_build_value is None:
+                value = self.default_build_value
+            else:
+                value = self.__class__.__name__
+        return self.to_python(value, **kwargs)
 
 
 class RangeValidator(Validator):
-    __metaclass__ = ABCMeta
     min = None
     max = None
 
-    @abstractmethod
     def to_python(self, value, **kwargs):
         if self.min is not None:
             if value < self.min:
@@ -65,9 +72,11 @@ class RangeValidator(Validator):
                 raise ValidationException(msg, value)
         return value
 
+    def build(self, *args, **kwargs):
+        return super(RangeValidator, self).build(*args, **kwargs)
+
 
 class BaseStringValidator(Validator):
-    __metaclass__ = ABCMeta
     minLength = None
     maxLength = None
 
@@ -84,9 +93,11 @@ class BaseStringValidator(Validator):
                 raise ValidationException(msg, value)
         return value
 
+    def build(self, *args, **kwargs):
+        return super(BaseStringValidator, self).build(*args, **kwargs)
+
 
 class RegexValidator(BaseStringValidator):
-    __metaclass__ = ABCMeta
     regex = r''
 
     messages = dict(
@@ -129,6 +140,7 @@ class Name(RegexValidator):
     (-), and periods (.). Colons should only be used to separate namespace
     prefixes from local names.
     """
+    default_build_value = 'prefix:Name'
     regex = r'^[a-zA-Z:_][\w:_\-\.]*$'
     messages = dict(
         invalid="""A name needs to begin with a letter, colon (:), or
@@ -187,6 +199,7 @@ class Language(RegexValidator):
     the pattern specified for this type, which says that it must consist of
     one or more parts of up to eight characters each, separated by hyphens.
     """
+    default_build_value = 'en-us'
     regex = r'^([a-zA-Z]{1,8})(-[a-zA-Z]{1,8})*$'
     messages = dict(
         invalid="""A language identifier consists of parts of one to eight
@@ -213,6 +226,7 @@ class NMTOKEN(RegexValidator):
 
 
 class IntegerValidator(RangeValidator):
+    default_build_value = 0
     messages = dict(
         integer='Please enter an integer value.')
 
@@ -225,6 +239,7 @@ class IntegerValidator(RangeValidator):
 
 
 class NonNegativeInteger(IntegerValidator):
+    default_build_value = 0
     min = 0
     messages = dict(
         integer='Please enter a non negative integer value.')
@@ -232,6 +247,7 @@ class NonNegativeInteger(IntegerValidator):
 
 
 class PositiveInteger(IntegerValidator):
+    default_build_value = 1
     min = 1
     messages = dict(
         integer='Please enter a positive integer value.')
@@ -239,6 +255,7 @@ class PositiveInteger(IntegerValidator):
 
 
 class NegativeInteger(IntegerValidator):
+    default_build_value = -1
     max = -1
     messages = dict(
         integer='Please enter a negative integer value.')
@@ -246,6 +263,7 @@ class NegativeInteger(IntegerValidator):
 
 
 class FloatValidator(RangeValidator):
+    default_build_value = 3.14
     messages = dict(
         number='Please enter a float Number.')
     not_empty = True
@@ -260,6 +278,7 @@ class FloatValidator(RangeValidator):
 
 
 class NonNegativeFloat(FloatValidator):
+    default_build_value = 0.0
     min = 0
     messages = dict(
         number='Please enter a non negative Number.')
@@ -271,7 +290,6 @@ class BooleanValidator(BaseStringValidator):
     Converts a string to a boolean.
 
     """
-
     true_values = ['true', 't', 'yes', 'y', 'on', '1']
     false_values = ['false', 'f', 'no', 'n', 'off', '0']
 
@@ -284,6 +302,10 @@ class BooleanValidator(BaseStringValidator):
         if string_value.lower() in self.false_values:
             return False
         raise ValidationException('Could not recognize boolean.', value)
+
+    def build(self, *args, **kwargs):
+        self.default_build_value = random.choice(self.true_values+self.false_values)
+        return super(BooleanValidator, self).build(*args, **kwargs)
 
 
 class EnumValidator(BaseStringValidator):
@@ -328,6 +350,10 @@ class EnumValidator(BaseStringValidator):
             return correct_value
         raise ValidationException(self.messages['notIn'] % dict(items=self.items,
                                                                 value=value), value)
+
+    def build(self, *args, **kwargs):
+        self.default_build_value = random.choice(self.options)
+        return super(EnumValidator, self).build(*args, **kwargs)
 
     @property
     def items(self):

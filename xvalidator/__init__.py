@@ -25,4 +25,4 @@ from .validators import StringValidator, Token, Name, NCName, Language, \
     NegativeInteger, FloatValidator, NonNegativeFloat, BooleanValidator, \
     EnumValidator, RegexValidator, ValidationException, Validator
 from .schemas import Choice, ElementSchema, SequenceSchema, SELF
-import element, utils
+#import element, utils

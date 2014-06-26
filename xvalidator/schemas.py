@@ -60,6 +60,8 @@ class ElementSchema(Validator):
         return result
 
     def _validate(self, validator, value, value_type, **kwargs):
+        if validator is None:
+            return value
         try:
             result = validator.to_python(value, **kwargs)
         except ValidationException as e:
@@ -129,6 +131,9 @@ class ElementSchema(Validator):
         element.attributes = self._validate_attributes(element, **kwargs)
         element.isValidated = True
         return element
+
+    def build(self, *args, **kwargs):
+        return super(ElementSchema, self).build(*args, **kwargs)
 
 
 class Choice(utils.CommonEqualityMixin):
@@ -228,15 +233,19 @@ class SequenceSchema(Validator):
         emptyChild='The field: %s should not be empty!',
     )
 
-    def check_key_order(self, value_tags, sequence):
+    def check_key_order(self, value_tags, sequence, parent_path):
         validator_keys = [field.tag for field in sequence]
         if value_tags != validator_keys:
-            utils.warning(logger, "The order of the keys %s does not match the \
-    expected order %s." % (', '.join(value_tags), ', '.join(validator_keys)))
+            utils.warning(logger, "The order of the keys in %s ( %s ) does "
+                                  "not match the expected order { %s )." %
+                                  (parent_path,
+                                   ', '.join(value_tags),
+                                   ', '.join(validator_keys)))
 
-    def match_sequence(self, value_tags):
+    def match_sequence(self, value_tags, parent_path):
         result_sequence = []
         covered_tags_set = set([])
+        failed = False
         for field in self.sequence:
             if isinstance(field, ElementSchema):
                 if field.tag in value_tags:
@@ -244,6 +253,7 @@ class SequenceSchema(Validator):
                 elif field.minOccurs > 0:
                     msg = "Missing required key: %s" % field.tag
                     utils.error(logger, msg)
+                    failed = True
                 covered_tags_set.add(field.tag)
             elif isinstance(field, Choice):
                 choice_keys_sey = set(value_tags) & field.all_keys_set
@@ -255,7 +265,8 @@ class SequenceSchema(Validator):
         if extra_tags:
             msg = "Could not match tag(s): %s" % ', '.join(extra_tags)
             utils.error(logger, msg)
-        self.check_key_order(value_tags, result_sequence)
+        elif not failed:
+            self.check_key_order(value_tags, result_sequence, parent_path)
         return result_sequence
 
     def to_python(self, elements_list, **kwargs):
@@ -281,10 +292,11 @@ class SequenceSchema(Validator):
                 else:
                     el_dict[element.tag] = element
             tag = '(%s)' % el_dict['tag'].value if 'tag' in el_dict else ''
-            msg = 'Validating Schema: %s for element <%s%s> with keys: %s' % (
-                self.__class__.__name__, self.tag, tag, ', '.join(el_dict.keys()))
+            parent_path = '/'.join(elements_list[0].path.split('/')[:-1])
+            msg = 'Validating: %s for element <%s%s> with keys: %s' % (
+                parent_path, self.tag, tag, ', '.join(el_dict.keys()))
             utils.debug(logger, msg)
-            sequence = self.match_sequence(el_dict.keys())
+            sequence = self.match_sequence(el_dict.keys(), parent_path)
             result = []
             if sequence:
                 for element_schema in sequence:
@@ -297,3 +309,8 @@ class SequenceSchema(Validator):
                         validated_element = element_schema.to_python(field_element, **kwargs)
                         result.append(validated_element)
             return result
+
+    def build(self, *args, **kwargs):
+        return super(SequenceSchema, self).build(*args, **kwargs)
+
+

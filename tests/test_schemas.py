@@ -57,7 +57,7 @@ def test_match_sequence_choice_pass():
                     ]
 
     value_keys = ['name', 'wire']
-    actual = Test().match_sequence(value_keys)
+    actual = Test().match_sequence(value_keys, '/')
     nose.tools.eq_(actual, [name, wire])
 
 
@@ -66,7 +66,7 @@ def test_match_sequence_no_choice_pass():
         sequence = [name, wire, count]
 
     value_keys = ['name', 'wire']
-    actual = Test().match_sequence(value_keys)
+    actual = Test().match_sequence(value_keys, '/')
     nose.tools.eq_(actual, [name, wire])
 
 
@@ -76,7 +76,7 @@ def test_match_sequence_missing_required_fail():
 
     value_keys = ['name', 'wire']
     reset_message_counters()
-    actual = Test().match_sequence(value_keys)
+    actual = Test().match_sequence(value_keys, '/')
     nose.tools.eq_([len(actual), errorCounter.value], [2, 1])
 
 
@@ -86,7 +86,7 @@ def test_match_sequence_extra_keys_fail():
 
     value_keys = ['name', 'wire', 'extra_key']
     reset_message_counters()
-    actual = Test().match_sequence(value_keys)
+    actual = Test().match_sequence(value_keys, '/')
     nose.tools.eq_([len(actual), errorCounter.value], [2, 1])
 
 
@@ -99,7 +99,7 @@ def test_match_sequence_basic_two_last_fail():
 
     value_keys = ['name', 'wire', 'transaction']
     reset_message_counters()
-    actual = Test().match_sequence(value_keys)
+    actual = Test().match_sequence(value_keys, '/')
     nose.tools.eq_([len(actual), errorCounter.value], [3, 1])
 
 
@@ -112,7 +112,7 @@ def test_match_sequence_unused_choice_pass():
 
     value_keys = ['name', 'count']
     reset_message_counters()
-    Test().match_sequence(value_keys)
+    Test().match_sequence(value_keys, '/')
     nose.tools.eq_(errorCounter.value, 0)
 
 
@@ -265,7 +265,7 @@ def test_check_key_order_pass():
         ElementSchema('two'),
         ElementSchema('three'),
     ]
-    Test().check_key_order(value_keys, sequence)
+    Test().check_key_order(value_keys, sequence, '/')
     nose.tools.eq_([warningCounter.value, errorCounter.value], [0, 0])
 
 
@@ -281,7 +281,7 @@ def test_check_key_order_warning_pass():
         ElementSchema('two'),
         ElementSchema('three'),
     ]
-    Test().check_key_order(value_keys, sequence)
+    Test().check_key_order(value_keys, sequence, '/')
     nose.tools.eq_(warningCounter.value, 1)
 
 
