@@ -1,7 +1,7 @@
 import nose
 from nose.tools import raises
 
-from xvalidator import constraints
+from xvalidator import constraints, Name
 from xvalidator.element import Element
 from xvalidator.validators import ValidationException
 from xvalidator.utils import errorCounter, reset_message_counters
@@ -120,8 +120,43 @@ def test_setup_key_refs_store_pass():
     path = '/root-0,/test'
     el = Element('test', value='refName', path=path)
     ks.to_python(el, stores=stores)
-    nose.tools.eq_(stores.refStore.refs, [constraints.KeyRef(key_name='TestKeyRef',
-                                                      key_value='refName', ref_path='/root-0,/test')])
+    nose.tools.eq_(stores.refStore.refs,
+        [constraints.KeyRef(key_name='TestKeyRef', key_value='refName',
+            ref_path='/root-0,/test')])
+
+
+def test_setup_key_refs_store_string_validator_pass():
+    stores = constraints.Stores()
+    ks = constraints.SetupKeyRefsStore('TestKeyRef',
+        string_validator_instance=Name())
+    path = '/root-0,/test'
+    el = Element('test', value='refName', path=path)
+    ks.to_python(el, stores=stores)
+    nose.tools.eq_(stores.refStore.refs,
+        [constraints.KeyRef(key_name='TestKeyRef', key_value='refName',
+            ref_path='/root-0,/test')])
+
+
+def test_setup_key_refs_store_build_pass():
+    stores = constraints.Stores()
+    ks = constraints.SetupKeyRefsStore('TestKeyRef')
+    path = '/root-0,/test'
+    el = Element('test', value='refName', path=path)
+    ks.build(el, stores=stores)
+    nose.tools.eq_(stores.refStore.refs,
+        [constraints.KeyRef(key_name='TestKeyRef', key_value='refName',
+            ref_path='/root-0,/test')])
+
+
+def test_setup_key_refs_store_build_no_value_pass():
+    stores = constraints.Stores()
+    ks = constraints.SetupKeyRefsStore('TestKeyRef')
+    path = '/root-0,/test'
+    el = Element('test', value='refName', path=path)
+    ks.build(path=el.path, stores=stores)
+    nose.tools.eq_(stores.refStore.refs,
+        [constraints.KeyRef(key_name='TestKeyRef', key_value='TestKeyRef0',
+            ref_path='/root-0,/test')])
 
 
 @raises(ValidationException)
@@ -158,10 +193,21 @@ def test_check_keys_single_key_build_no_value_pass():
     stores = constraints.Stores()
     ks = constraints.InitKeyStore('FieldKey')
     path = "/register-0,reg6"
-    ks.to_python(None, path=path, stores=stores)
+    ks.build(path=path, stores=stores)
     ck = constraints.CheckKeys(key_names='FieldKey', level=1)
     field = Element('field', value='field22', path=path + '/field-2,field22')
     nose.tools.eq_(ck.build(path=field.path, stores=stores), 'FieldKey0')
+
+
+def test_check_keys_single_key_build_no_value_refer_key_pass():
+    stores = constraints.Stores()
+    ks = constraints.InitKeyStore('FieldKey')
+    path = "/register-0,reg6"
+    ks.build(path=path, stores=stores)
+    ck = constraints.CheckKeys(key_names='FieldKey', refer_key_name='ReferKey',
+        level=1)
+    field = Element('field', value='field22', path=path + '/field-2,field22')
+    nose.tools.eq_(ck.build(path=field.path, stores=stores), 'ReferKey0')
 
 
 def test_check_uniques_empty_value_pass():
@@ -190,7 +236,7 @@ def test_check_uniques_single_key_build_no_value_pass():
     stores = constraints.Stores()
     ks = constraints.InitUniqueStore('UniqueKey')
     path = "/register-0,reg6"
-    ks.to_python(None, path=path, stores=stores)
+    ks.build(path=path, stores=stores)
     ck = constraints.CheckUniques(key_names='UniqueKey', level=1)
     field = Element('field', value='field22', path=path + '/field-2,field22')
     actual = ck.build(path=field.path, stores=stores)
@@ -201,7 +247,7 @@ def test_check_uniques_single_key_build_no_value_two_calls_pass():
     stores = constraints.Stores()
     ks = constraints.InitUniqueStore('UniqueKey')
     path = "/register-0,reg6"
-    ks.to_python(None, path=path, stores=stores)
+    ks.build(path=path, stores=stores)
     ck = constraints.CheckUniques(key_names='UniqueKey', level=1)
     field = Element('field', value='field22', path=path + '/field-2,field22')
     ck.build(path=field.path, stores=stores)
@@ -264,7 +310,7 @@ def test_check_keys_three_keys_build_no_value_pass():
     stores = constraints.Stores()
     ks = constraints.InitKeyStore('FieldKey')
     path = "/register-0,reg6"
-    ks.to_python(None, path=path, stores=stores)
+    ks.build(path=path, stores=stores)
     ck = constraints.CheckKeys(key_names=['OtherKey', 'FieldKey',
                                           'YetAnotherKey'], level=1)
     field = Element('field', value='field22', path=path + '/field-2,field22')

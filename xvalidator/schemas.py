@@ -133,7 +133,16 @@ class ElementSchema(Validator):
         return element
 
     def build(self, *args, **kwargs):
-        return super(ElementSchema, self).build(*args, **kwargs)
+        path = kwargs.get('path')
+        if self.validator:
+            value = self.validator.build(*args, **kwargs)
+        else:
+            value = None
+        attributes = OrderedDict()
+        for attr in self.attributes:
+            if attr.validator:
+                attributes[attr.tag] = attr.validator.build(*args, **kwargs)
+        return self.to_python(Element(self.tag, value=value, attributes=attributes, path=path))
 
 
 class Choice(utils.CommonEqualityMixin):

@@ -1,9 +1,12 @@
 from collections import namedtuple
 import logging
 
-import six
-
 import utils
+
+try:  # pragma no cover
+    _basestring = basestring
+except NameError:  # pragma no cover
+    _basestring = str
 
 from xvalidator.validators import Validator, ValidationException, NCName, Name
 
@@ -38,7 +41,7 @@ class KeyStore(object):
         return '%s:%s' % (key_name, target_path) in self._keys
 
     def add_value(self, key_names, target_path, key_value, key_path):
-        if isinstance(key_names, six.string_types):
+        if isinstance(key_names, _basestring):
             key_names_list = [key_names]
         else:
             key_names_list = key_names
@@ -188,7 +191,7 @@ class InitKeyStore(InitStores):
 
     def __init__(self, key_name, **kwargs):
         super(InitKeyStore, self).__init__(**kwargs)
-        assert key_name and isinstance(key_name, six.string_types), self.messages['name']
+        assert key_name and isinstance(key_name, _basestring), self.messages['name']
         self.key_names = [key_name]
 
 
@@ -218,6 +221,7 @@ class AddKeyRef(Validator):
         return string_value
 
     def build(self, *args, **kwargs):
+        self.default_build_value = self.refer_key_name + '0'
         return super(AddKeyRef, self).build(*args, **kwargs)
 
 
@@ -268,9 +272,9 @@ class CheckKeys(Validator):
         if isinstance(self.key_names, list):
             assert self.key_names
             for name in self.key_names:
-                assert isinstance(name, six.string_types)
+                assert isinstance(name, _basestring)
         else:
-            assert isinstance(self.key_names, six.string_types)
+            assert isinstance(self.key_names, _basestring)
             self.key_names = [self.key_names]
         assert isinstance(self.level, int)
 

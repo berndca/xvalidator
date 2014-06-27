@@ -16,10 +16,15 @@ def test_validation_exception__str__pass():
     nose.tools.eq_(str(iv), 'message, value:42')
 
 
-def test_token_Build_value_pass():
+def test_token_build_value_pass():
     value = ' Test string with collapsed whitespace.'
     actual = Token().build(value)
     nose.tools.eq_(actual, value)
+
+
+def test_token_str_pass():
+    actual = str(Token())
+    nose.tools.eq_(actual, 'Token')
 
 
 def test_token_build_pass():
