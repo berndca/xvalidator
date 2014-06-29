@@ -1,9 +1,12 @@
+from __future__ import unicode_literals
+
+from collections import OrderedDict
 import nose
 from nose.tools import raises
 
 from xvalidator.constraints import Stores, ID
 from xvalidator.element import Element
-from xvalidator.utils import errorCounter, reset_message_counters
+from xvalidator import utils
 from xvalidator.schemas import ElementSchema, SequenceSchema
 from xvalidator.validators import PositiveInteger, NCName
 
@@ -76,12 +79,26 @@ def test_element_schema_validate_pass():
     nose.tools.eq_(value, 42)
 
 
+def test_element_schema_tp_python_validator_None_pass():
+    es = ElementSchema('test', validator=None)
+    el = Element('test', value=[1, 2], path='/')
+    value = es.to_python(el)
+    nose.tools.eq_(value, el)
+
+
+def test_element_schema_tp_python_element_None_pass():
+    es = ElementSchema('test', validator=NCName(), minOccurs=0)
+    el = Element('test', value=None, path='/')
+    value = es.to_python(el)
+    nose.tools.eq_(value, el)
+
+
 def test_element_schema_validate_fail():
-    reset_message_counters()
+    utils.reset_message_counters()
     es = ElementSchema('testable', validator=PositiveInteger())
     # noinspection PyProtectedMember
     es._validate(es.validator, 'NaN', es.tag, path='/')
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
 
 
 def test_element_schema_validate_attributes_min_pass():
@@ -105,14 +122,14 @@ def test_element_schema_validate_attributes_extra_pass():
 
 
 def test_element_schema_validate_attributes_extra_fail():
-    reset_message_counters()
+    utils.reset_message_counters()
     es = ElementSchema('testable',
                        attributes=ElementSchema(
                            'index', validator=PositiveInteger()))
     element = Element('testable', attributes=dict(index='42', refer='extra'))
     # noinspection PyProtectedMember
     es._validate_attributes(element)
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
 
 
 def test_element_schema_validate_attributes_validator_none_pass():
@@ -174,4 +191,83 @@ def test_element_schema_to_python_sequence_schema_pass():
     actual = es.to_python(element)
     nose.tools.eq_(actual, expected)
 
+
+def test_element_schema_build_no_value_no_attributes_pass():
+    es = ElementSchema('name', validator=NCName())
+    path='/name-0,NCName,'
+    actual = es.build(path=path)
+    expected = Element('name', value='NCName', path=path)
+    nose.tools.eq_(actual, expected)
+
+
+def test_element_schema_build_no_value_with_attributes_pass():
+    es = ElementSchema('name', validator=NCName(), attributes=[
+        ElementSchema('id', validator=ID()),
+        ElementSchema('offset', validator=PositiveInteger()),
+    ])
+    path='/name-0,NCName,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores)
+    expected = Element('name', value='NCName', path=path, attributes=
+    OrderedDict([('id', 'testId0'), ('offset', 1)]))
+    expected.isValidated = True
+    validated = es.to_python(actual, path=path, stores=Stores())
+    nose.tools.eq_(validated, expected)
+
+
+def test_element_schema_build_no_value_with_attributes_validator_none_pass():
+    es = ElementSchema('parent', validator=None, attributes=[
+        ElementSchema('id', validator=ID()),
+        ElementSchema('offset', validator=PositiveInteger()),
+    ])
+    path='/name-0,NCName,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores)
+    expected = Element('parent', value=None, path=path, attributes=
+    OrderedDict([('id', 'testId0'), ('offset', 1)]))
+    expected.isValidated = True
+    validated = es.to_python(actual, path=path, stores=Stores())
+    nose.tools.eq_(validated, expected)
+
+
+def test_element_schema_build_no_value_with_star_attribute_pass():
+    es = ElementSchema('name', validator=NCName(), attributes=[
+        ElementSchema('id', validator=ID()),
+        ElementSchema('*', validator=None),
+        ElementSchema('offset', validator=PositiveInteger()),
+    ])
+    path='/name-0,NCName,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores)
+    expected = Element('name', value='NCName', path=path, attributes=
+    OrderedDict([('id', 'testId0'), ('offset', 1)]))
+    nose.tools.eq_(actual, expected)
+
+
+def test_element_schema_build_no_value_unbounded_int_pass():
+    es = ElementSchema('dim', validator=PositiveInteger(), unbounded=True)
+    path='/dim-0,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores)
+    expected = Element('dim', value=[1, 1, 1, 1, 1], path=path)
+    nose.tools.eq_(actual, expected)
+
+
+def test_element_schema_build_no_value_unbounded_maxoccurs_pass():
+    es = ElementSchema('dim', validator=PositiveInteger(), unbounded=True)
+    path='/dim-0,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores, maxOccurs=2)
+    expected = Element('dim', value=[1, 1], path=path)
+    nose.tools.eq_(actual, expected)
+
+
+def test_element_schema_build_no_value_unbounded_minoccurs2_pass():
+    es = ElementSchema('dim', validator=PositiveInteger(), unbounded=True,
+    minOccurs=2)
+    path='/dim-0,'
+    stores = Stores()
+    actual = es.build(path=path, stores=stores)
+    expected = Element('dim', value=[1, 1], path=path)
+    nose.tools.eq_(actual, expected)
 

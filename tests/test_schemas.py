@@ -1,4 +1,7 @@
+from __future__ import unicode_literals
+
 import logging
+import random
 
 import nose
 from nose.tools import raises
@@ -6,7 +9,7 @@ from nose.tools import raises
 from xvalidator import validators, InitKeyStore, KeyName, Stores
 from xvalidator.element import Element
 from xvalidator.schemas import Choice, ElementSchema, SequenceSchema
-from xvalidator.utils import errorCounter, reset_message_counters, warningCounter
+from xvalidator import utils
 
 
 __author__ = 'bernd'
@@ -14,7 +17,7 @@ __author__ = 'bernd'
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-name = ElementSchema('name', minOccurs=1)
+name = ElementSchema('name', validator=validators.NCName(), minOccurs=1)
 wire = ElementSchema('wire', minOccurs=1)
 transaction = ElementSchema('transaction', minOccurs=1)
 count = ElementSchema('count')
@@ -34,7 +37,7 @@ def test_choice_keys_str_single_list_pass():
 
 def test_str_unicode_pass():
     choice = Choice(options=[wire, transaction])
-    nose.tools.eq_(str(choice), u'Choice: (wire | transaction)')
+    nose.tools.eq_(str(choice), 'Choice: (wire | transaction)')
 
 
 def test_choice_keys_str_nested_list_2_levels_pass():
@@ -75,9 +78,9 @@ def test_match_sequence_missing_required_fail():
         sequence = [name, count, wire, transaction]
 
     value_keys = ['name', 'wire']
-    reset_message_counters()
+    utils.reset_message_counters()
     actual = Test().match_sequence(value_keys, '/')
-    nose.tools.eq_([len(actual), errorCounter.value], [2, 1])
+    nose.tools.eq_([len(actual), utils.error_count], [2, 1])
 
 
 def test_match_sequence_extra_keys_fail():
@@ -85,9 +88,9 @@ def test_match_sequence_extra_keys_fail():
         sequence = [name, count, wire]
 
     value_keys = ['name', 'wire', 'extra_key']
-    reset_message_counters()
+    utils.reset_message_counters()
     actual = Test().match_sequence(value_keys, '/')
-    nose.tools.eq_([len(actual), errorCounter.value], [2, 1])
+    nose.tools.eq_([len(actual), utils.error_count], [2, 1])
 
 
 def test_match_sequence_basic_two_last_fail():
@@ -98,9 +101,9 @@ def test_match_sequence_basic_two_last_fail():
                     ]
 
     value_keys = ['name', 'wire', 'transaction']
-    reset_message_counters()
+    utils.reset_message_counters()
     actual = Test().match_sequence(value_keys, '/')
-    nose.tools.eq_([len(actual), errorCounter.value], [3, 1])
+    nose.tools.eq_([len(actual), utils.error_count], [3, 1])
 
 
 def test_match_sequence_unused_choice_pass():
@@ -111,9 +114,9 @@ def test_match_sequence_unused_choice_pass():
                     ]
 
     value_keys = ['name', 'count']
-    reset_message_counters()
+    utils.reset_message_counters()
     Test().match_sequence(value_keys, '/')
-    nose.tools.eq_(errorCounter.value, 0)
+    nose.tools.eq_(utils.error_count, 0)
 
 
 def test_choice_to_key_sets_multiple_required_true_pass():
@@ -152,9 +155,9 @@ def test_choice_basic_two_pass():
 def test_choice_basic_two_both_fail():
     choice = Choice(options=[either, orValidator])
     value_key_set = {'either', 'or'}
-    reset_message_counters()
+    utils.reset_message_counters()
     choice.match_choice_keys(value_key_set)
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
 
 
 def test_choice_basic_two_extra_fail():
@@ -163,9 +166,9 @@ def test_choice_basic_two_extra_fail():
         ElementSchema('or', minOccurs=1),
     ])
     value_key_set = {'extra', 'or'}
-    reset_message_counters()
+    utils.reset_message_counters()
     choice.match_choice_keys(value_key_set)
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
 
 
 def test_choice_three_options_single_pass():
@@ -193,17 +196,33 @@ def test_choice_three_options_two_pass():
 def test_choice_missing_required_fail():
     choice = Choice(options=[name, [drive0, timing]])
     value_key_set = {'drive'}
-    reset_message_counters()
+    utils.reset_message_counters()
     choice.match_choice_keys(value_key_set)
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
 
 
 def test_choice_missing_required_first_optional_second_fail():
     choice = Choice(options=[[name, load0], [drive0, load0]])
     value_key_set = {'name', 'drive', 'load'}
-    reset_message_counters()
+    utils.reset_message_counters()
     choice.match_choice_keys(value_key_set)
-    nose.tools.eq_(errorCounter.value, 1)
+    nose.tools.eq_(utils.error_count, 1)
+
+
+def test_choice_build_first_pass():
+    choice = Choice(options=[name, [drive0, timing]])
+    actual = choice.build(random_choice=False)
+    expected = [Element(tag='name', value='NCName')]
+    nose.tools.eq_(actual, expected)
+
+
+def test_choice_build_random_pass():
+    random.seed(0)
+    choice = Choice(options=[name, [drive0, timing]])
+    actual = choice.build(random_choice=True)
+    expected = [Element(tag='drive', value=None),
+                Element(tag='timing', value=None)]
+    nose.tools.eq_(actual, expected)
 
 
 useEnumeratedValues = ElementSchema('useEnumeratedValues', minOccurs=1)
@@ -254,7 +273,7 @@ def test_choice_three_options_one_empty_pass():
 
 
 def test_check_key_order_pass():
-    reset_message_counters()
+    utils.reset_message_counters()
     value_keys = ['one', 'two', 'three']
 
     class Test(SequenceSchema):
@@ -266,11 +285,11 @@ def test_check_key_order_pass():
         ElementSchema('three'),
     ]
     Test().check_key_order(value_keys, sequence, '/')
-    nose.tools.eq_([warningCounter.value, errorCounter.value], [0, 0])
+    nose.tools.eq_([utils.warning_count, utils.error_count], [0, 0])
 
 
 def test_check_key_order_warning_pass():
-    reset_message_counters()
+    utils.reset_message_counters()
     value_keys = ['two', 'one', 'three']
 
     class Test(SequenceSchema):
@@ -282,7 +301,7 @@ def test_check_key_order_warning_pass():
         ElementSchema('three'),
     ]
     Test().check_key_order(value_keys, sequence, '/')
-    nose.tools.eq_(warningCounter.value, 1)
+    nose.tools.eq_(utils.warning_count, 1)
 
 
 def test_validate_attributes():
@@ -299,6 +318,15 @@ def test_validate_attributes():
                                  ))
     validated = schema.to_python(el_with_attributes)
     nose.tools.eq_(validated.attributes['exampleInt'], 42)
+
+
+def test_to_python_value_no_list_not_empty_tru_pass():
+    class Test(SequenceSchema):
+        not_empty = False
+        sequence = [name, count, wire]
+
+    actual = Test().to_python(None)
+    assert actual is None
 
 
 @raises(validators.ValidationException)
@@ -335,8 +363,28 @@ def test_to_python_pass():
     ]
     for element in expected:
         element.isValidated = True
-        test_instance = Test()
-    actual = test_instance.to_python(element_list)
+    actual = Test().to_python(element_list)
+    nose.tools.eq_(actual, expected)
+
+
+def test_build_pass():
+    class Test(SequenceSchema):
+        sequence = [name, count, wire]
+
+    actual = Test().build()
+    expected = [Element(tag='name', value='NCName'),
+                Element(tag='count', value=None),
+                Element(tag='wire', value=None)]
+    nose.tools.eq_(actual, expected)
+
+
+def test_build_choice_pass():
+    class Test(SequenceSchema):
+        sequence = [name, Choice(options=[count, wire])]
+
+    actual = Test().build(random_choice=False)
+    expected = [Element(tag='name', value='NCName'),
+                Element(tag='count', value=None)]
     nose.tools.eq_(actual, expected)
 
 
@@ -351,7 +399,7 @@ def test_sequence_schema_initial_pass():
         sequence = [ElementSchema('spirit:field', validator=RegisterField())]
 
 
-    reset_message_counters()
+    utils.reset_message_counters()
     register_path = '/register-0,'
     field0_path = register_path + '/field-0,field0'
     field1_path = register_path + '/field-1,field1'
@@ -365,4 +413,4 @@ def test_sequence_schema_initial_pass():
     stores = Stores()
     Register().to_python(register.value, path=register.path,
         stores=stores)
-    nose.tools.eq_(errorCounter.value, 0)
+    nose.tools.eq_(utils.error_count, 0)

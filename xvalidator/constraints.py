@@ -1,12 +1,9 @@
+from __future__ import unicode_literals
 from collections import namedtuple
 import logging
 
 import utils
-
-try:  # pragma no cover
-    _basestring = basestring
-except NameError:  # pragma no cover
-    _basestring = str
+from py2to3 import string_types
 
 from xvalidator.validators import Validator, ValidationException, NCName, Name
 
@@ -41,7 +38,7 @@ class KeyStore(object):
         return '%s:%s' % (key_name, target_path) in self._keys
 
     def add_value(self, key_names, target_path, key_value, key_path):
-        if isinstance(key_names, _basestring):
+        if isinstance(key_names, string_types):
             key_names_list = [key_names]
         else:
             key_names_list = key_names
@@ -191,7 +188,7 @@ class InitKeyStore(InitStores):
 
     def __init__(self, key_name, **kwargs):
         super(InitKeyStore, self).__init__(**kwargs)
-        assert key_name and isinstance(key_name, _basestring), self.messages['name']
+        assert key_name and isinstance(key_name, string_types), self.messages['name']
         self.key_names = [key_name]
 
 
@@ -272,9 +269,9 @@ class CheckKeys(Validator):
         if isinstance(self.key_names, list):
             assert self.key_names
             for name in self.key_names:
-                assert isinstance(name, _basestring)
+                assert isinstance(name, string_types)
         else:
-            assert isinstance(self.key_names, _basestring)
+            assert isinstance(self.key_names, string_types)
             self.key_names = [self.key_names]
         assert isinstance(self.level, int)
 
@@ -397,16 +394,10 @@ class IDREF(NCName):
 def match_refs(stores):
     def match_store_refs(key_store, ref_store):
         for ref in ref_store.refs:
-            try:
-                instance_path = key_store.match_ref(ref.key_name, ref.key_value)
-                ref_store.set_target(ref.ref_path, instance_path)
-            except ValidationException as e:
-                msg = 'Error matching %s for "%s"' % (
-                    ref.key_name, ref.key_value)
-                utils.error(logger, msg)
-            else:
-                logger.debug('Successfully matched "%s/%s", got: %r'
-                             % (ref.key_name, ref.key_value, instance_path))
+            instance_path = key_store.match_ref(ref.key_name, ref.key_value)
+            ref_store.set_target(ref.ref_path, instance_path)
+            logger.debug('Successfully matched "%s/%s", got: %r'
+                         % (ref.key_name, ref.key_value, instance_path))
 
     match_store_refs(stores.keyStore, stores.refStore)
     match_store_refs(stores.idStore, stores.idrefStore)

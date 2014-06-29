@@ -1,12 +1,9 @@
+from __future__ import unicode_literals
 from collections import namedtuple, OrderedDict, defaultdict
 import logging
 
-from xvalidator import utils
-
-try:  # pragma no cover
-    _unicode = unicode
-except NameError:  # pragma no cover
-    _unicode = str
+import utils
+from py2to3 import text_type
 
 __author__ = 'bernd'
 
@@ -21,7 +18,7 @@ def _value_to_unicode(value):
             if value:
                 return 'true'
             return 'false'
-        return _unicode(value)
+        return text_type(value)
 
 
 class Element(utils.CommonEqualityMixin):

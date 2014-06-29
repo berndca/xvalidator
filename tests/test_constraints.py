@@ -4,7 +4,6 @@ from nose.tools import raises
 from xvalidator import constraints, Name
 from xvalidator.element import Element
 from xvalidator.validators import ValidationException
-from xvalidator.utils import errorCounter, reset_message_counters
 
 
 __author__ = 'bernd'
@@ -462,8 +461,8 @@ def test_match_refs_pass():
     nose.tools.eq_(stores.refStore.targets, targets)
 
 
+@raises(ValidationException)
 def test_match_refs_value_not_found_fail():
-    reset_message_counters()
     stores = constraints.Stores()
     root_element = Element('root', value=None, path='/component-0,test')
     ref_element = Element('memoryMapRef', value='myMemoryMap',
@@ -472,7 +471,6 @@ def test_match_refs_value_not_found_fail():
     kr = constraints.SetupKeyRefsStore('memoryMapKey')
     kr.to_python(ref_element, stores=stores)
     constraints.match_refs(stores)
-    nose.tools.eq_(errorCounter.value, 1)
 
 
 def test_match_idref_to_id_single_pass():

@@ -4,13 +4,8 @@ import logging
 import random
 import re
 
-try:  # pragma no cover
-    _basestring = basestring
-except NameError:  # pragma no cover
-    _basestring = str
-
-from xvalidator import utils
-
+import utils
+from py2to3 import string_types
 
 __author__ = 'bernd'
 
@@ -85,7 +80,7 @@ class BaseStringValidator(Validator):
 
     def to_python(self, value, **kwargs):
         value = super(BaseStringValidator, self).to_python(value, **kwargs)
-        if not isinstance(value, _basestring):
+        if not isinstance(value, string_types):
             raise ValidationException('Expecting value of type six.string_types.', value)
         if self.minLength is not None:
             if len(value) < self.minLength:
@@ -334,7 +329,7 @@ class EnumValidator(BaseStringValidator):
         all_members_strings = True
         for item in self.options:
             all_members_strings = all_members_strings and isinstance(item,
-                _basestring)
+                string_types)
         assert all_members_strings, 'options need to be a list of strings.'
         self.lookup = None
         self.lookup_lower = None

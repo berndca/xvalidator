@@ -1,5 +1,7 @@
+from __future__ import unicode_literals
 from collections import namedtuple, OrderedDict
 import logging
+import random
 
 from xvalidator.element import Element
 from xvalidator import utils
@@ -133,16 +135,26 @@ class ElementSchema(Validator):
         return element
 
     def build(self, *args, **kwargs):
-        path = kwargs.get('path')
+        path = kwargs.get('path', '')
+        if self.minOccurs > 1:
+            max_occurs = self.minOccurs
+        else:
+            max_occurs = kwargs.get('maxOccurs', 5)
         if self.validator:
-            value = self.validator.build(*args, **kwargs)
+            if self.unbounded:
+                value = [self.validator.build(*args, **kwargs)
+                         for count in range(max_occurs)]
+            else:
+                value = self.validator.build(*args, **kwargs)
         else:
             value = None
         attributes = OrderedDict()
         for attr in self.attributes:
             if attr.validator:
                 attributes[attr.tag] = attr.validator.build(*args, **kwargs)
-        return self.to_python(Element(self.tag, value=value, attributes=attributes, path=path))
+        if not attributes:
+            attributes = None
+        return Element(self.tag, value=value, attributes=attributes, path=path)
 
 
 class Choice(utils.CommonEqualityMixin):
@@ -227,6 +239,17 @@ class Choice(utils.CommonEqualityMixin):
         return [self._flat_options[tag] for tag in value_key_set
                 if tag in self._flat_options]
 
+    def build(self, *args, **kwargs):
+        random_choice = kwargs.get('random_choice', True)
+        if random_choice:
+            option = random.choice(self.options)
+        else:
+            option = self.options[0]
+        if isinstance(option, list):
+            options_list = option
+        else:
+            options_list = [option]
+        return [item.build(*args, **kwargs) for item in options_list]
 
 class SequenceSchema(Validator):
     sequence = []
@@ -320,6 +343,11 @@ class SequenceSchema(Validator):
             return result
 
     def build(self, *args, **kwargs):
-        return super(SequenceSchema, self).build(*args, **kwargs)
-
+        result = []
+        for item in self.sequence:
+            if isinstance(item, Choice):
+                result.extend(item.build(*args, **kwargs))
+            else:
+                result.append(item.build(*args, **kwargs))
+        return result
 

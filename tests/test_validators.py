@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import random
 import nose
 from nose.tools import raises
@@ -5,7 +6,7 @@ from nose.tools import raises
 from xvalidator.validators import Token, Name, NCName, Language, \
     NMTOKEN, IntegerValidator, NonNegativeInteger, PositiveInteger, \
     NegativeInteger, FloatValidator, NonNegativeFloat, BooleanValidator, \
-    EnumValidator, ValidationException, Validator
+    EnumValidator, ValidationException
 
 
 __author__ = 'bernd'
@@ -380,7 +381,7 @@ def test_driver_type_pass():
 
 
 def test_build_driver_type_pass():
-    random.seed(42)
+    random.seed(41)
     actual = DriverType().build()
     nose.tools.eq_(actual, 'singleShot')
 
@@ -408,7 +409,7 @@ def test_driver_type_value_type_fail():
 
 @raises(ValidationException)
 def test_driver_type_value_unicode_error_fail():
-    DriverType().to_python(u'\x81myCLOCK')
+    DriverType().to_python('\x81myCLOCK')
 
 
 def test_enum_init_pass():
