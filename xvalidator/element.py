@@ -1,8 +1,9 @@
+from __future__ import unicode_literals
 from collections import namedtuple, OrderedDict, defaultdict
 import logging
 
-from xvalidator import utils
-
+import utils
+from py2to3 import text_type
 
 __author__ = 'bernd'
 
@@ -11,30 +12,22 @@ logger = logging.getLogger(__name__)
 NameSpace = namedtuple('NameSpace', 'prefix uri')
 
 
-def _value_to_string(value):
+def _value_to_unicode(value):
     if not value is None:
         if isinstance(value, bool):
             if value:
                 return 'true'
             return 'false'
-        return str(value)
+        return text_type(value)
 
 
 class Element(utils.CommonEqualityMixin):
     def __init__(self, tag, value=None, attributes=None,
-                 path='', ns_prefix=''):
+                 path=''):
         self.tag = tag
         self.value = value
-        # strValue = value if isinstance(value, six.string_types) else None
-        # self.displayValue = displayValue if not displayValue is None else strValue
         self.attributes = attributes
-        #        if attributes:
-        #            self.displayAttributes = {key: value
-        #                                      for key, value in attributes.items()}
-        #        else:
-        #            self.displayAttributes = None
         self.path = path
-        self.ns_prefix = ns_prefix
         self.isValidated = False
 
     def __repr__(self):
@@ -43,8 +36,6 @@ class Element(utils.CommonEqualityMixin):
             r += ", attributes=%r" % self.attributes
         if self.path:
             r += ', path="%s"' % self.path
-        if self.ns_prefix:
-            r += ", ns_prefix=%s" % self.ns_prefix
         return r + ", value=%r)" % self.value
 
     def __str__(self):
@@ -52,16 +43,14 @@ class Element(utils.CommonEqualityMixin):
 
     @property
     def to_dict(self):
-        ns_prefix_colon = self.ns_prefix + ':' if self.ns_prefix else ''
         result = OrderedDict()
         if self.attributes:
             for key, value in self.attributes.items():
-                result['@%s%s' % (ns_prefix_colon, key)] = _value_to_string(value)
+                result['@' + key] = _value_to_unicode(value)
         if isinstance(self.value, list):
             if self.value and isinstance(self.value[0], Element):
                 for child in self.value:
-                    child_prefix = child.ns_prefix + ':' if child.ns_prefix else ''
-                    key = '%s%s' % (child_prefix, child.tag)
+                    key = child.tag
                     if key in result:
                         if isinstance(result[key], list):
                             result[key].append(child.to_dict)
@@ -71,46 +60,26 @@ class Element(utils.CommonEqualityMixin):
                     else:
                         result[key] = child.to_dict
                 return result
-            value = [_value_to_string(item) for item in self.value]
+            value = [_value_to_unicode(item) for item in self.value]
         else:
-            value = _value_to_string(self.value)
+            value = _value_to_unicode(self.value)
         if result:
-            if value is None or value == '':
+            if value is None or value == '' or value == []:
                 return result
-            result['#text'] = _value_to_string(value)
+            result['#text'] = _value_to_unicode(value)
             return result
         return value
 
 
-def check_name_space_prefix(key, name_spaces):
-    no_at_key = key.replace('@', '')
-    if ':' in no_at_key:
-        ns_prefix = no_at_key.split(':')[0]
-    else:
-        ns_prefix = ''
-    found = False
-    for index, name_space in enumerate(name_spaces):
-        if ns_prefix == name_space.prefix:
-            found = True
-    if not found:
-        utils.error(logger, 'Could not find ns_prefix for key: "%s"' % key)
-    return ns_prefix
-
-
 def get_result_tag(key):
     result_key = key.replace('@', '')
-    if ':' in result_key:
-        result_key = result_key.split(':')[1]
     return result_key
 
 
 def create_element(tag, value_dict, name_spaces, path='', instance_index=0,
-                   stats=None, is_root=False):
+                   stats=None):
     """
     """
-    ns_prefix = ''
-    if not is_root:
-        ns_prefix = check_name_space_prefix(tag, name_spaces)
     parent_tag = get_result_tag(tag)
     value_dict_keys = {
         (key.split(':')[1] if ':' in key else key): key
@@ -126,7 +95,6 @@ def create_element(tag, value_dict, name_spaces, path='', instance_index=0,
             is_attribute = child_key[0] == '@'
             child_tag = get_result_tag(child_key)
             child_path = new_path + '/' + child_tag + '-0,'
-            child_ns_prefix = check_name_space_prefix(child_key, name_spaces)
             if is_attribute:
                 if not attributes:
                     attributes = OrderedDict()
@@ -144,19 +112,18 @@ def create_element(tag, value_dict, name_spaces, path='', instance_index=0,
                 else:  # list of values
                     element_value.append(Element(
                         tag=child_tag, value=child_value,
-                        attributes=attributes, path=child_path, ns_prefix=child_ns_prefix))
+                        attributes=attributes, path=child_path))
                     if not stats is None:
                         stats[child_key] += 1
             else:  # single value
                 element_value.append(Element(
-                    tag=child_tag, value=child_value, path=child_path,
-                    ns_prefix=child_ns_prefix))
+                    tag=child_tag, value=child_value, path=child_path))
                 if not stats is None:
                     stats[child_key] += 1
     if not stats is None:
         stats[tag] += 1
     return Element(tag=parent_tag, value=element_value,
-                   attributes=attributes, path=new_path, ns_prefix=ns_prefix)
+                   attributes=attributes, path=new_path)
 
 
 class Document(utils.CommonEqualityMixin):
@@ -202,8 +169,7 @@ def create_document(source, xml_dict):
                 stats['%s.%s' % (root_tag, key)] += 1
         else:
             xml_root[key] = value
-    root_element = create_element(root_tag, xml_root, name_spaces, stats=stats,
-                                  is_root=True)
+    root_element = create_element(root_tag, xml_root, name_spaces, stats=stats)
     attributes_arg = attributes if attributes else None
     return Document(source=source, name_spaces=name_spaces, attributes=attributes_arg,
                     root_element=root_element, stats=stats)

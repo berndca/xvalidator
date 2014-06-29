@@ -1,10 +1,12 @@
+from __future__ import unicode_literals
+import random
 import nose
 from nose.tools import raises
 
 from xvalidator.validators import Token, Name, NCName, Language, \
     NMTOKEN, IntegerValidator, NonNegativeInteger, PositiveInteger, \
     NegativeInteger, FloatValidator, NonNegativeFloat, BooleanValidator, \
-    EnumValidator, ValidationException, Validator
+    EnumValidator, ValidationException
 
 
 __author__ = 'bernd'
@@ -15,16 +17,20 @@ def test_validation_exception__str__pass():
     nose.tools.eq_(str(iv), 'message, value:42')
 
 
-def test_validator__str__pass():
-    class TestValidator(Validator):
-        def to_python(self, value, path=None):
-            return super(TestValidator, self).to_python(value)
+def test_token_build_value_pass():
+    value = ' Test string with collapsed whitespace.'
+    actual = Token().build(value)
+    nose.tools.eq_(actual, value)
 
-    tv = TestValidator()
-    to_value = tv.to_python(42)
-    from_value = tv.from_python('back')
-    nose.tools.eq_([str(tv), to_value, from_value],
-                   ['TestValidator', 42, 'back'])
+
+def test_token_str_pass():
+    actual = str(Token())
+    nose.tools.eq_(actual, 'Token')
+
+
+def test_token_build_pass():
+    actual = Token().build()
+    nose.tools.eq_(actual, 'Token')
 
 
 def test_token_pass():
@@ -69,6 +75,11 @@ def test_name_pass():
     nose.tools.eq_(actual, value)
 
 
+def test_build_name_pass():
+    actual = Name().build()
+    nose.tools.eq_(actual, 'prefix:Name')
+
+
 @raises(ValidationException)
 def test_name_two_colons_fail():
     validator_inst = Name()
@@ -90,6 +101,11 @@ def test_ncname_pass():
     nose.tools.eq_(actual, value)
 
 
+def test_build_ncname_pass():
+    actual = NCName().build()
+    nose.tools.eq_(actual, 'NCName')
+
+
 @raises(ValidationException)
 def test_ncname_whitespace_fail():
     validator_inst = NCName()
@@ -102,6 +118,17 @@ def test_language_pass():
     value = 'En-US'
     actual = validator_inst.to_python(value)
     nose.tools.eq_(actual, value)
+
+
+def test_build_language_value_pass():
+    value = 'En-US'
+    actual = Language().build(value)
+    nose.tools.eq_(actual, value)
+
+
+def test_build_language_pass():
+    actual = Language().build()
+    nose.tools.eq_(actual, 'en-us')
 
 
 @raises(ValidationException)
@@ -125,21 +152,43 @@ def test_nmtoken_pass():
     nose.tools.eq_(actual, value)
 
 
+def test_nmtoken_build_pass():
+    actual = NMTOKEN().build()
+    nose.tools.eq_(actual, 'NMTOKEN')
+
+
+def test_nmtoken_build_value_pass():
+    value = '.:-_Test-NMTOKEN_0'
+    actual = NMTOKEN().build(value)
+    nose.tools.eq_(actual, value)
+
+
 @raises(ValidationException)
 def test_nmtoken_whitespace_fail():
     value = 'Test-NMTOKEN 0'
     NMTOKEN().to_python(value)
 
 
-def test__integer_pass():
+def test_integer_pass():
     validator_inst = IntegerValidator()
     value = '00033'
     actual = validator_inst.to_python(value)
     nose.tools.eq_(actual, 33)
 
 
+def test_build_integer_33_pass():
+    value = '00033'
+    actual = IntegerValidator().build(value)
+    nose.tools.eq_(actual, 33)
+
+
+def test_build_integer_pass():
+    actual = IntegerValidator().build()
+    nose.tools.eq_(actual, 0)
+
+
 @raises(ValidationException)
-def test__integer_range_fail():
+def test_integer_range_fail():
     value = '00abc'
     IntegerValidator().to_python(value)
 
@@ -148,6 +197,17 @@ def test_non_negative_integer_pass():
     validator_inst = NonNegativeInteger()
     value = '00033'
     actual = validator_inst.to_python(value)
+    nose.tools.eq_(actual, 33)
+
+
+def test_non_negative_integer_build_pass():
+    actual = NonNegativeInteger().build()
+    nose.tools.eq_(actual, 0)
+
+
+def test_non_negative_integer_build_value_pass():
+    value = '00033'
+    actual = NonNegativeInteger().build(value)
     nose.tools.eq_(actual, 33)
 
 
@@ -164,6 +224,17 @@ def test_positive_integer_pass():
     nose.tools.eq_(actual, 33)
 
 
+def test_positive_integer_build_pass():
+    actual = PositiveInteger().build()
+    nose.tools.eq_(actual, 1)
+
+
+def test_positive_integer_build_value_pass():
+    value = '00033'
+    actual = PositiveInteger().build(value)
+    nose.tools.eq_(actual, 33)
+
+
 @raises(ValidationException)
 def test_positive_integer_range_fail():
     value = '0'
@@ -174,6 +245,17 @@ def test_negative_integer_pass():
     validator_inst = NegativeInteger()
     value = '-00033'
     actual = validator_inst.to_python(value)
+    nose.tools.eq_(actual, -33)
+
+
+def test_negative_integer_build_pass():
+    actual = NegativeInteger().build()
+    nose.tools.eq_(actual, -1)
+
+
+def test_negative_integer_build_value_pass():
+    value = '-00033'
+    actual = NegativeInteger().build(value)
     nose.tools.eq_(actual, -33)
 
 
@@ -190,6 +272,17 @@ def test_float_pass():
     nose.tools.eq_(actual, 33)
 
 
+def test_float_build_pass():
+    actual = FloatValidator().build(0)
+    nose.tools.eq_(actual, 0.0)
+
+
+def test_float_build_value_pass():
+    value = '00033'
+    actual = FloatValidator().build(value)
+    nose.tools.eq_(actual, 33)
+
+
 @raises(ValidationException)
 def test_float_range_fail():
     value = '00abc'
@@ -200,6 +293,17 @@ def test_non_negative_float_pass():
     validator_inst = NonNegativeFloat()
     value = '00033'
     actual = validator_inst.to_python(value)
+    nose.tools.eq_(actual, 33)
+
+
+def test_non_negative_float_build_pass():
+    actual = NonNegativeFloat().build()
+    nose.tools.eq_(actual, 0.0)
+
+
+def test_non_negative_float_build_value_pass():
+    value = '00033'
+    actual = NonNegativeFloat().build(value)
     nose.tools.eq_(actual, 33)
 
 
@@ -219,6 +323,22 @@ def test_boolean_validator_true_pass():
 def test_boolean_validator_false_pass():
     validator_inst = BooleanValidator()
     actual = validator_inst.to_python('false')
+    nose.tools.eq_(actual, False)
+
+
+def test_build_boolean_validator_pass():
+    random.seed(1)
+    actual = BooleanValidator().build()
+    nose.tools.eq_(actual, True)
+
+
+def test_build_boolean_validator_value_pass():
+    actual = BooleanValidator().build('true')
+    nose.tools.eq_(actual, True)
+
+
+def test_build_boolean_validator_false_pass():
+    actual = BooleanValidator().build('false')
     nose.tools.eq_(actual, False)
 
 
@@ -260,6 +380,17 @@ def test_driver_type_pass():
     nose.tools.eq_(actual, 'singleShot')
 
 
+def test_build_driver_type_pass():
+    random.seed(41)
+    actual = DriverType().build()
+    nose.tools.eq_(actual, 'singleShot')
+
+
+def test_build_driver_type_value_pass():
+    actual = DriverType().build('any')
+    nose.tools.eq_(actual, 'any')
+
+
 def test_driver_type_case_warning_pass():
     validator_inst = DriverType()
     actual = validator_inst.to_python('CLOCK')
@@ -278,7 +409,7 @@ def test_driver_type_value_type_fail():
 
 @raises(ValidationException)
 def test_driver_type_value_unicode_error_fail():
-    DriverType().to_python(u'\x81myCLOCK')
+    DriverType().to_python('\x81myCLOCK')
 
 
 def test_enum_init_pass():

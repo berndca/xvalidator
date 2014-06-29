@@ -23,4 +23,6 @@ from .schemas import ElementSchema, SequenceSchema
 from .validators import StringValidator, Token, Name, NCName, Language, \
     NMTOKEN, IntegerValidator, NonNegativeInteger, PositiveInteger, \
     NegativeInteger, FloatValidator, NonNegativeFloat, BooleanValidator, \
-    EnumValidator
+    EnumValidator, RegexValidator, ValidationException, Validator
+from .schemas import Choice, ElementSchema, SequenceSchema, SELF
+#import element, utils

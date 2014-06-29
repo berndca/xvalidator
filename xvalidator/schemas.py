@@ -1,5 +1,7 @@
+from __future__ import unicode_literals
 from collections import namedtuple, OrderedDict
 import logging
+import random
 
 from xvalidator.element import Element
 from xvalidator import utils
@@ -60,6 +62,8 @@ class ElementSchema(Validator):
         return result
 
     def _validate(self, validator, value, value_type, **kwargs):
+        if validator is None:
+            return value
         try:
             result = validator.to_python(value, **kwargs)
         except ValidationException as e:
@@ -73,18 +77,19 @@ class ElementSchema(Validator):
             return result
 
     def _validate_attributes(self, element, **kwargs):
-        validated_attributes = {}
+        validated_attributes = OrderedDict()
         attributes = element.attributes
         if attributes:
             expected_attributes = set([validator.tag
-                                      for validator in self.attributes
-                                      if validator.tag != '*'])
+                                       for validator in self.attributes
+                                       if validator.tag[-1] != '*'])
             extra_attribute_keys = set(attributes.keys()) - expected_attributes
-            validators = {validator.tag: validator
-                          for validator in self.attributes
-                          if validator.tag in attributes.keys()}
+            validators = OrderedDict()
+            for validator in self.attributes:
+                if validator.tag in attributes.keys():
+                    validators[validator.tag] = validator
             if extra_attribute_keys:
-                allow_extra_attributes = any(validator.tag == '*'
+                allow_extra_attributes = any(validator.tag[-1] == '*'
                                              for validator in self.attributes)
                 if allow_extra_attributes:
                     for extra_attribute_name in extra_attribute_keys:
@@ -92,15 +97,16 @@ class ElementSchema(Validator):
                 else:
                     utils.error(logger, 'Found unexpected attributes: "%s" in "%s".' % (
                         ', '.join(extra_attribute_keys), element.path))
-            for tag in expected_attributes:
-                if validators[tag].validator is None:
-                    validated_attributes[tag] = attributes[tag]
-                else:
-                    kwargs.update(path=element.path + '@%s' % tag)
-                    validated_attributes[tag] = self._validate(
-                        validators[tag].validator,
-                        attributes[tag], '%s.@%s' % (element.tag, tag),
-                        **kwargs)
+            for tag in validators.keys():
+                if tag in expected_attributes:
+                    if validators[tag].validator is None:
+                        validated_attributes[tag] = attributes[tag]
+                    else:
+                        kwargs.update(path=element.path + '@%s' % tag)
+                        validated_attributes[tag] = self._validate(
+                            validators[tag].validator,
+                            attributes[tag], '%s.@%s' % (element.tag, tag),
+                            **kwargs)
             return validated_attributes
 
     @property
@@ -109,19 +115,46 @@ class ElementSchema(Validator):
 
     def to_python(self, element, **kwargs):
         assert isinstance(element, Element), 'Argument element should be of type Element, got %r' % element
+        kwargs.update(path=element.path)
         if isinstance(element.value, list):
             if element.value and isinstance(element.value[0], Element):
-                element.value = self.validator.to_python(element.value, **kwargs)
+                element.value = self._validate(self.validator, element.value,
+                                               'Element %s' % element.tag, **kwargs)
             else:
-                element.value = [self.validator.to_python(item, **kwargs)
+                element.value = [self._validate(self.validator, item,
+                                                'Element %s' % element.tag, **kwargs)
                                  for item in element.value]
         elif self.validator:
-            kwargs.update(path=element.path)
-            element.value = self._validate(self.validator, element.value,
-                                           'Element %s' % element.tag, **kwargs)
+            if element.value is None and self.minOccurs == 0:
+                logger.debug('Ignoring empty element "%s".' % element.tag)
+            else:
+                element.value = self._validate(self.validator, element.value,
+                                               'Element %s' % element.tag, **kwargs)
         element.attributes = self._validate_attributes(element, **kwargs)
         element.isValidated = True
         return element
+
+    def build(self, *args, **kwargs):
+        path = kwargs.get('path', '')
+        if self.minOccurs > 1:
+            max_occurs = self.minOccurs
+        else:
+            max_occurs = kwargs.get('maxOccurs', 5)
+        if self.validator:
+            if self.unbounded:
+                value = [self.validator.build(*args, **kwargs)
+                         for count in range(max_occurs)]
+            else:
+                value = self.validator.build(*args, **kwargs)
+        else:
+            value = None
+        attributes = OrderedDict()
+        for attr in self.attributes:
+            if attr.validator:
+                attributes[attr.tag] = attr.validator.build(*args, **kwargs)
+        if not attributes:
+            attributes = None
+        return Element(self.tag, value=value, attributes=attributes, path=path)
 
 
 class Choice(utils.CommonEqualityMixin):
@@ -206,6 +239,17 @@ class Choice(utils.CommonEqualityMixin):
         return [self._flat_options[tag] for tag in value_key_set
                 if tag in self._flat_options]
 
+    def build(self, *args, **kwargs):
+        random_choice = kwargs.get('random_choice', True)
+        if random_choice:
+            option = random.choice(self.options)
+        else:
+            option = self.options[0]
+        if isinstance(option, list):
+            options_list = option
+        else:
+            options_list = [option]
+        return [item.build(*args, **kwargs) for item in options_list]
 
 class SequenceSchema(Validator):
     sequence = []
@@ -221,15 +265,19 @@ class SequenceSchema(Validator):
         emptyChild='The field: %s should not be empty!',
     )
 
-    def check_key_order(self, value_tags, sequence):
+    def check_key_order(self, value_tags, sequence, parent_path):
         validator_keys = [field.tag for field in sequence]
         if value_tags != validator_keys:
-            utils.warning(logger, "The order of the keys %s does not match the \
-    expected order %s." % (', '.join(value_tags), ', '.join(validator_keys)))
+            utils.warning(logger, "The order of the keys in %s ( %s ) does "
+                                  "not match the expected order { %s )." %
+                                  (parent_path,
+                                   ', '.join(value_tags),
+                                   ', '.join(validator_keys)))
 
-    def match_sequence(self, value_tags):
+    def match_sequence(self, value_tags, parent_path):
         result_sequence = []
         covered_tags_set = set([])
+        failed = False
         for field in self.sequence:
             if isinstance(field, ElementSchema):
                 if field.tag in value_tags:
@@ -237,6 +285,7 @@ class SequenceSchema(Validator):
                 elif field.minOccurs > 0:
                     msg = "Missing required key: %s" % field.tag
                     utils.error(logger, msg)
+                    failed = True
                 covered_tags_set.add(field.tag)
             elif isinstance(field, Choice):
                 choice_keys_sey = set(value_tags) & field.all_keys_set
@@ -248,42 +297,57 @@ class SequenceSchema(Validator):
         if extra_tags:
             msg = "Could not match tag(s): %s" % ', '.join(extra_tags)
             utils.error(logger, msg)
-        self.check_key_order(value_tags, result_sequence)
+        elif not failed:
+            self.check_key_order(value_tags, result_sequence, parent_path)
         return result_sequence
 
     def to_python(self, elements_list, **kwargs):
-        if not isinstance(elements_list, list):
-            raise ValidationException('Expected child elements.', elements_list)
-        if self.initial:
-            self.initial.to_python(None, **kwargs)
-        for element in elements_list:
-            if not isinstance(element, Element):
-                raise ValidationException('All values must be of type Element.',
-                                          elements_list)
-        el_dict = OrderedDict()
-        for element in elements_list:
-            if element.tag in el_dict:
-                if isinstance(el_dict[element.tag], list):
-                    el_dict[element.tag].append(element)
+        if elements_list is None and not self.not_empty:
+            pass
+        else:
+            if not isinstance(elements_list, list):
+                raise ValidationException('Expected child elements.', elements_list)
+            if self.initial:
+                self.initial.to_python(None, **kwargs)
+            for element in elements_list:
+                if not isinstance(element, Element):
+                    raise ValidationException('All values must be of type Element.',
+                                              elements_list)
+            el_dict = OrderedDict()
+            for element in elements_list:
+                if element.tag in el_dict:
+                    if isinstance(el_dict[element.tag], list):
+                        el_dict[element.tag].append(element)
+                    else:
+                        el_dict[element.tag] = [el_dict[element.tag],
+                                                element]
                 else:
-                    el_dict[element.tag] = [el_dict[element.tag],
-                                            element]
-            else:
-                el_dict[element.tag] = element
-        tag = '(%s)' % el_dict['tag'].value if 'tag' in el_dict else ''
-        msg = 'Validating Schema: %s for element <%s%s> with keys: %s' % (
-            self.__class__.__name__, self.tag, tag, ', '.join(el_dict.keys()))
-        utils.debug(logger, msg)
-        sequence = self.match_sequence(el_dict.keys())
+                    el_dict[element.tag] = element
+            tag = '(%s)' % el_dict['tag'].value if 'tag' in el_dict else ''
+            parent_path = '/'.join(elements_list[0].path.split('/')[:-1])
+            msg = 'Validating: %s for element <%s%s> with keys: %s' % (
+                parent_path, self.tag, tag, ', '.join(el_dict.keys()))
+            utils.debug(logger, msg)
+            sequence = self.match_sequence(el_dict.keys(), parent_path)
+            result = []
+            if sequence:
+                for element_schema in sequence:
+                    field_element = el_dict[element_schema.tag]
+                    if isinstance(field_element, list):
+                        validated_elements = [element_schema.to_python(item, **kwargs)
+                                              for item in field_element]
+                        result.extend(validated_elements)
+                    else:
+                        validated_element = element_schema.to_python(field_element, **kwargs)
+                        result.append(validated_element)
+            return result
+
+    def build(self, *args, **kwargs):
         result = []
-        if sequence:
-            for element_schema in sequence:
-                field_element = el_dict[element_schema.tag]
-                if isinstance(field_element, list):
-                    validated_elements = [element_schema.to_python(item, **kwargs)
-                                          for item in field_element]
-                    result.extend(validated_elements)
-                else:
-                    validated_element = element_schema.to_python(field_element, **kwargs)
-                    result.append(validated_element)
+        for item in self.sequence:
+            if isinstance(item, Choice):
+                result.extend(item.build(*args, **kwargs))
+            else:
+                result.append(item.build(*args, **kwargs))
         return result
+
